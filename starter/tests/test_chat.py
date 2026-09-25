@@ -287,3 +287,17 @@ def test_month_breakdown(chat, question, field, months):
     best = max(evidence, key=lambda e: e["result"][field])
     month = int(best["params"]["start"][5:7])
     assert "%d 月" % month in result["answer"].split("；")[0]
+
+
+@pytest.mark.parametrize(
+    "question, field, lowest",
+    [("7 月营业额最高的一天是哪天", "net_revenue", False), ("8 月哪天订单最少", "orders", True)],
+)
+def test_peak_day(chat, question, field, lowest):
+    """“哪天最高/最少”问的是日期：逐日查，再按问的指标和方向说出是哪一天。"""
+    result = chat.chat("day-" + question, question)
+    evidence = result["data_evidence"][0]
+    assert evidence["tool"] == "daily_metrics"
+    days = evidence["result"]["days"]
+    pick = (min if lowest else max)(days, key=lambda day: day[field])
+    assert pick["date"] in result["answer"].split("；")[0]

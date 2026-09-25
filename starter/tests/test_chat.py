@@ -356,3 +356,13 @@ def test_follow_up_after_previous_window(chat, follow_up):
     params = result["data_evidence"][0]["params"]
     assert params["store_id"] == "S01"
     assert (params["start"], params["end"]) == ("2026-08-01", "2026-08-31")
+
+
+def test_list_item_quoted_alone(chat):
+    """台风通知的第 1 条写着 14:00 闭店：只引这一条，不把相邻几条连着引，
+    也不因为“几点”补进的“营业时间”去引“恢复正常营业”那条。"""
+    result = chat.chat("typhoon", "台风天几点前闭店？")
+    assert result["answer_type"] == "doc"
+    quotes = [citation["quote"] for citation in result["citations"] if citation["doc_id"] == "KB-026"]
+    assert quotes and "14:00 提前闭店" in quotes[0]
+    assert "恢复正常营业" not in quotes[0] and "关闭接单" not in quotes[0]

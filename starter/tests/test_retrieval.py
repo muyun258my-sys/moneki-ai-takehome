@@ -163,3 +163,11 @@ def test_retriever_year_and_as_of():
     # 6 月（KB-011 尚未生效）应命中 v1 储值
     r = retriever.search("充值500送多少", top_k=5, as_of=date(2026, 6, 15))
     assert any(h.doc_id == "KB-010" for h in r.hits)
+
+
+def test_chunker_keeps_line_breaks():
+    """“。”后面的换行是分行的依据：丢了的话列表各条会粘成一行，引用时连着引出好几条。"""
+    body = "处理办法如下：\n1. 第一条写的是结论。\n2. 第二条写的是例外。\n## 附则\n本规定即日起执行。"
+    doc = Document(doc_id="KB-999", title="t", text=body, path=Path("x.md"), fmt="md")
+    text_chunks = [c.text for c in chunk_document(doc) if c.kind == "text"]
+    assert "".join(text_chunks) == body

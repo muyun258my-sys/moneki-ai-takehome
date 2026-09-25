@@ -268,3 +268,22 @@ def test_store_ranking_uses_asked_metric(chat, question, field, lowest):
     assert pick["store_id"] in head
     assert ("最低" if lowest else "最高") in head
     assert "净营业额" not in head
+
+
+@pytest.mark.parametrize(
+    "question, field, months",
+    [
+        ("哪个月营业额最高", "net_revenue", 4),
+        ("6 月到 8 月哪个月订单最多", "orders", 3),
+        ("S01 每个月的退款金额", "refund_amount", 4),
+    ],
+)
+def test_month_breakdown(chat, question, field, months):
+    """“哪个月最高”“每个月的…”要逐月查，再按问的指标说出是哪个月。"""
+    result = chat.chat("month-" + question, question)
+    evidence = [e for e in result["data_evidence"] if e["tool"] == "query_metrics"]
+    assert len(evidence) == months
+    assert all(e["params"]["start"][8:] == "01" for e in evidence)
+    best = max(evidence, key=lambda e: e["result"][field])
+    month = int(best["params"]["start"][5:7])
+    assert "%d 月" % month in result["answer"].split("；")[0]

@@ -96,3 +96,20 @@ def test_colloquial_metric_routes_to_data(chat, question, field, value):
     result = chat.chat("colloquial-" + field, question)
     assert result["answer_type"] == "data"
     assert result["data_evidence"][0]["result"][field] == value
+
+
+@pytest.mark.parametrize(
+    "follow_up, cite, text",
+    [
+        ("用什么替代？", "KB-021", "鸡肉poke"),
+        ("赔了多少钱？", "KB-022", "8,600"),
+    ],
+)
+def test_follow_up_without_marker(chat, follow_up, cite, text):
+    """没有“那/后来”的省略追问：它自己查不到东西，要接着上一轮的话题问。"""
+    session = "ellipsis-" + cite
+    chat.chat(session, "三文鱼poke 为什么停售？")
+    result = chat.chat(session, follow_up)
+    assert result["answer_type"] in ("doc", "hybrid")
+    assert cite in [c["doc_id"] for c in result["citations"]]
+    assert text in result["answer"]

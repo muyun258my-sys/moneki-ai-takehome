@@ -152,6 +152,7 @@ class Answerer(HybridAnswers):
                 limit=3,
                 require_value=require_value,
                 own=plan.question if plan.standalone != plan.question else None,
+                expansion=plan.slots.get("expansion"),
             )
             # KB-001 §5.2：周报与纪要里的**数字**是估算，问经营数字时才让位；
             # 问决议、原因、日期时，纪要就是权威出处。

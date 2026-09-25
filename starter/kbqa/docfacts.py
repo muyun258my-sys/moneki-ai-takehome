@@ -118,6 +118,7 @@ class DocFacts:
         limit: int = 3,
         require_value: bool = False,
         own: Optional[str] = None,
+        expansion: Optional[list[str]] = None,
     ) -> list[tuple[float, str]]:
         """在一篇文档里挑最能回答问题的句子。
 
@@ -129,8 +130,20 @@ class DocFacts:
         写在标题里就算数；挑哪一句由这一句自己的词决定。
         问句点名的门店、商品同理：“S01 店长是谁”里的 S01 只说明是哪家店，
         门店档案的标题里已经写着它，答案是“店长”那一行，而不是重复店名的那一行。
+        `expansion` 是规划时补进检索式的领域同义词（问“几点”补“营业时间 闭店 延长”）。
+        它们是兜底：问句自己的词在这篇文档里有句子直接写到时，只按问句自己的词挑，
+        否则“台风天几点前闭店”会挑中只写了“恢复正常营业、按标准营业时间开店”的那一条；
+        一句都没写到时（“S03 几点开门”，原文只写“标准营业时间”）才让扩写词计分。
         """
         weights = self.term_weights(query)
+        if expansion:
+            base = query
+            for word in expansion:
+                base = base.replace(word, " ")
+            asked = {term: weight for term, weight in weights.items() if term in self.term_weights(base)}
+            topical = set(asked) - self._subject_terms(query)
+            if topical and any(topical & set(tokenize(unit.text)) for unit in self.units(doc_id)):
+                weights = asked
         total = sum(weights.values()) or 1.0
         inherited = self._subject_terms(query) & set(weights)
         if own is not None:

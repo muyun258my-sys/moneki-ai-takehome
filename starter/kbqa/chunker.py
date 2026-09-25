@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from .loader import Document
 
 #: 切块参数变了，索引缓存必须失效，所以写进缓存键里。
-CHUNKER_VERSION = "chunker-4"
+CHUNKER_VERSION = "chunker-5"
 
 CHUNK_SIZE = 300
 
@@ -81,9 +81,15 @@ def _text_chunks(text: str) -> list[str]:
     boundaries = [match.end() for match in re.finditer(r"[。！？!?\n]", text)]
     starts = [0] + boundaries
     ends = starts[1:] + [len(text)]
-    sentences = [
-        text[start:end] for start, end in zip(starts, ends) if text[start:end].strip()
-    ]
+    sentences: list[str] = []
+    for start, end in zip(starts, ends):
+        piece = text[start:end]
+        if piece.strip():
+            sentences.append(piece)
+        elif sentences:
+            # “。”后面紧跟的换行会单独切成一段：它是分行的依据，接回上一句，不能丢。
+            # 丢了的话列表的各条、小标题都会粘成一行，引用时就把相邻几条连着引出来。
+            sentences[-1] += piece
     chunks: list[str] = []
     current = ""
     for sentence in sentences:

@@ -338,17 +338,21 @@ class Planner:
             parts.append("%s %s" % (plan.store_id, self.catalog.store_name(plan.store_id)))
         if plan.product_id:
             parts.append(self.catalog.product_name(plan.product_id))
+        expansion: list[str] = []
         for key, words in INTENT_KEYWORDS.items():
             if key == "price" and plan.kind == "price":
-                parts.extend(words)
+                expansion.extend(words)
             elif key == "target" and plan.kind == "target":
-                parts.extend(words)
+                expansion.extend(words)
             elif key == "anomaly" and plan.kind == "anomaly":
-                parts.extend(words)
+                expansion.extend(words)
             elif key == "payment" and plan.kind == "payment":
-                parts.extend(words)
+                expansion.extend(words)
             elif key == "hours" and E.has_any(plan.standalone, ("营业到", "几点", "营业时间", "开门", "关门")):
-                parts.extend(words)
+                expansion.extend(words)
+        parts.extend(expansion)
+        # 扩写词只帮检索找到对的文档；挑哪一句时它们不能和问句自己的词一样算数（见 DocFacts.rank）。
+        plan.slots["expansion"] = [word for word in expansion if word not in plan.standalone]
         plan.search_query = " ".join(parts)
 
 

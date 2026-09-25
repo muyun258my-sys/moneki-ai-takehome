@@ -173,3 +173,19 @@ def test_named_year_excludes_other_years_plan(chat, question):
     assert cited[0] == "KB-024"
     assert "KB-023" not in cited
     assert "¥25" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "question, cite, price",
+    [
+        ("牛肉poke 现在多少钱？", "KB-025", "45"),
+        ("牛肉poke 多少钱", "KB-025", "45"),
+        # 问的是活动价：仍然是 618 方案，不能被当成售价问题。
+        ("牛肉poke 618 活动多少钱", "KB-023", "29"),
+    ],
+)
+def test_bare_how_much_asks_current_price(chat, question, cite, price):
+    """点了商品只问“多少钱”，问的是现在的售价，不是某一天的活动价。"""
+    result = chat.chat("price-" + question, question)
+    assert result["citations"][0]["doc_id"] == cite
+    assert price in result["answer"]

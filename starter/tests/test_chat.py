@@ -124,3 +124,11 @@ def test_follow_up_cites_the_notice(chat, follow_up):
     result = chat.chat(session, follow_up)
     assert result["citations"][0]["doc_id"] == "KB-021"
     assert "鸡肉poke" in result["answer"]
+
+
+def test_month_prefix_does_not_trip_refusal_gate(chat):
+    """“6 月”已经解析成生效日期，不该再留在越界闸门里造出“月会”这种跨词二元组。"""
+    result = chat.chat("topup-june", "6 月的时候会员充 500 送多少？")
+    assert result["answer_type"] in ("doc", "hybrid")
+    assert result["citations"][0]["doc_id"] == "KB-010"
+    assert "赠送 50 元" in result["answer"]

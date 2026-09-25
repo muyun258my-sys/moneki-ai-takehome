@@ -316,3 +316,31 @@ def test_landline_still_answered(chat):
     result = chat.chat("landline", "S01 的联系电话是多少")
     assert result["answer_type"] == "doc"
     assert "021-5555-0101" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "question, window",
+    [
+        ("7 月之后的营业额", ("2026-08-01", "2026-08-31")),
+        ("7月以后卖了多少单", ("2026-08-01", "2026-08-31")),
+        ("8 月 15 日之后的营业额", ("2026-08-16", "2026-08-31")),
+        ("6 月起的营业额", ("2026-06-01", "2026-08-31")),
+        ("6 月以来的营业额", ("2026-06-01", "2026-08-31")),
+    ],
+)
+def test_after_named_time_is_past(chat, question, window):
+    """“7 月之后”从 8 月 1 日起一直到数据末尾，是过去的事，照常查数；
+    和“7 月之前”一样不含 7 月本身。“6 月起/以来”含 6 月。"""
+    result = chat.chat("after-" + question, question)
+    assert result["answer_type"] == "data"
+    params = result["data_evidence"][0]["params"]
+    assert (params["start"], params["end"]) == window
+    assert len(result["data_evidence"]) == 1
+
+
+@pytest.mark.parametrize("question", ["9 月之后的营业额", "8 月 31 日之后卖了多少单"])
+def test_after_data_end_is_future(chat, question):
+    """起点落在数据末尾之后，才是真的问未来：如实说没有数据。"""
+    result = chat.chat("future-" + question, question)
+    assert result["answer_type"] == "refusal"
+    assert not result["data_evidence"]

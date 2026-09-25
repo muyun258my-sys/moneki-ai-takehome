@@ -314,8 +314,8 @@ class Planner:
             plan.intent = "refusal"
             plan.kind = "out_of_period"
             # “9 月之后”只有起点，没有终点可说。
-            asked = "%s 以后" % start if spec.open_ended else "%s 至 %s" % (start, end)
-            plan.refusal = "数据库里只有 %s 至 %s 的销售明细，%s 没有任何数据。" % (
+            asked = "%s 以后" % start if spec.open_ended else "%s 至 %s " % (start, end)
+            plan.refusal = "数据库里只有 %s 至 %s 的销售明细，%s没有任何数据。" % (
                 self.data_period["start"],
                 self.data_period["end"],
                 asked,

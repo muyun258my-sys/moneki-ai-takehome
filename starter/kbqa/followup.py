@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, timedelta
 from typing import Callable, Optional
 
 from . import entities as E
@@ -14,6 +14,8 @@ _ELLIPSIS_HEAD = re.compile(
     r"^(用|换|赔|补|退|改|为什么|为何|怎么|多少|几|什么|哪|谁|有没有|是不是|要不要|能不能|会不会)"
 )
 _ELLIPSIS_MAX_LEN = 12
+#: 只剩一个“之后”的追问：“那之后呢”“这以后呢”。时间就是上一轮的那一段往后。
+_AFTER_PREVIOUS = re.compile(r"^(那|这)?(之后|以后|往后)(呢|怎么样|如何)?[？?]?$")
 
 
 class FollowUps:
@@ -139,6 +141,13 @@ class FollowUps:
         if re.search(r"(那一周|这一周|那周|同一周)", question) and recent:
             spec.windows = [recent[-1]]
             spec.explicit = True
+        if _AFTER_PREVIOUS.match(question.strip()) and recent:
+            # “那之后呢”接的是上一轮的时间：从那段时间结束往后到现在，是过去，不是问未来。
+            start = date.fromisoformat(recent[-1][1]) + timedelta(days=1)
+            spec.windows = [(start.isoformat(), max(start, self.today).isoformat())]
+            spec.explicit, spec.open_ended, spec.future = True, True, False
+            spec.as_of = self.today
+            plan.notes.append("“%s”指上一轮 %s 之后到现在。" % (question.strip(), recent[-1][1]))
 
 
 def _topic_terms(previous: str) -> str:

@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 from . import entities as E
 from .followup import FollowUps
-from .timeparse import TimeSpec, parse_time
+from .timeparse import TimeSpec, months_in, parse_time
 
 #: 意图 -> 检索时补充的领域同义词。纯语言层面的扩写，帮助“卖多少钱”命中“售价/调价”。
 INTENT_KEYWORDS = {
@@ -259,6 +259,8 @@ class Planner:
             plan.kind, plan.intent = "compare", "data"
         elif asks_payment:
             plan.kind, plan.intent = "payment", "data"
+        elif E.has_any(text, E.MONTHLY_WORDS) and len(months_in(plan.window)) > 1:
+            plan.kind, plan.intent = "by_month", "data"
         elif asks_rank and E.has_any(text, E.CATEGORY_WORDS):
             plan.kind, plan.intent = "category", "data"
         elif E.has_any(text, E.STORE_WORDS) and not plan.store_id:

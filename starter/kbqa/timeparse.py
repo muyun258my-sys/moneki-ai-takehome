@@ -287,6 +287,18 @@ def _month_and_day_windows(
     return windows
 
 
+def months_in(window: tuple[str, str]) -> list[tuple[str, str]]:
+    """把一个区间按自然月切开，首尾不满一个月的按区间截断。"""
+    start, end = date.fromisoformat(window[0]), date.fromisoformat(window[1])
+    pieces: list[tuple[str, str]] = []
+    cursor = start
+    while cursor <= end:
+        last = date(cursor.year, cursor.month, monthrange(cursor.year, cursor.month)[1])
+        pieces.append((cursor.isoformat(), min(last, end).isoformat()))
+        cursor = last + timedelta(days=1)
+    return pieces
+
+
 def loose_days(text: str) -> list[int]:
     """只说了“8 号”没说月份时，把日号拿出来，交给追问用上一轮的月份补全。"""
     cleaned = squash(text)

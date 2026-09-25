@@ -496,3 +496,15 @@
 - **根因**：`starter/kbqa/render.py` 的 `describe_by_store` 不接收指标和方向，answerer 也没传。
 - **修复**：本次提交。`describe_by_store` 接收 `metric` 和 `lowest`，按问的指标排序，单位用 `metric_value`。问句带「最低/最少/最差/垫底」（`entities.LOWEST_WORDS`）时从低往高说。默认的「净营业额最高」输出与原来逐字一致。
 - **回归测试**：`tests/test_chat.py::test_store_ranking_uses_asked_metric`（期望的门店从 evidence 里的工具结果算出来，不写死店名；修复前 2 例都答净营业额最高的 S02）。
+
+## #53 「哪个月营业额最高」答成了商品排名（L3 数据）
+
+- **现象**：`哪个月营业额最高` 回答「卖得最好的是牛肉poke」；`6 月到 8 月哪个月订单最多` 只给了三个月的合计；`S01 每个月的退款金额` 也只有合计。
+- **假设**：没有「按月」这条路线，带排名词的落到 top_products，不带的落到 summary。
+- **验证**：`_choose_kind` 里没有任何分支认「哪个月/每个月」；工具层也没有按月汇总的工具，只有 query_metrics。
+- **根因**：`starter/kbqa/planner.py` 和 `starter/kbqa/answerer.py` 缺少逐月对照的路线。
+- **修复**：本次提交。
+  - 新增 `entities.MONTHLY_WORDS`（哪个月、每个月、各月、逐月……）和 `timeparse.months_in`（把区间按自然月切开，首尾按区间截断）。
+  - 问数路线上，问句带这些词且区间跨了不止一个月时，kind=by_month：每个月调一次 query_metrics（每次都记进 data_evidence），`render.describe_by_month` 先说最高（问最低时说最低）的那个月，再按时间顺序列出各月。
+  - 只在问数路线上生效，`员工每月可以享受几次折扣` 照旧走知识库。
+- **回归测试**：`tests/test_chat.py::test_month_breakdown`（期望的月份从 evidence 算出；修复前 3 例都没有逐月查询）。

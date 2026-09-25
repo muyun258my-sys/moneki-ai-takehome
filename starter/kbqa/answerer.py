@@ -13,6 +13,7 @@ from .hybrid import HybridAnswers
 from .planner import Plan
 from .retriever import Retriever, SearchResult
 from .schemas import Answer
+from .timeparse import months_in
 from .tokenizer import content_tokens, tokenize
 
 #: 拒答闸门。两个互补的信号：
@@ -308,6 +309,24 @@ class Answerer(HybridAnswers):
                 (name for name in result.get("payments", {}) if name in plan.standalone), ""
             )
             return render.describe_payment(result, scope, focus)
+        if plan.kind == "by_month":
+            rows = [
+                (
+                    month,
+                    self._call(
+                        evidence,
+                        "query_metrics",
+                        start=month[0],
+                        end=month[1],
+                        store_id=plan.store_id,
+                        product_id=plan.product_id,
+                    ),
+                )
+                for month in months_in(window)
+            ]
+            return render.describe_by_month(
+                rows, scope, plan.metric, has_any(plan.standalone, LOWEST_WORDS)
+            )
         if plan.kind == "top_products":
             result = self._call(
                 evidence, "top_products", start=start, end=end, store_id=plan.store_id, limit=10

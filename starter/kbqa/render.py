@@ -138,6 +138,24 @@ def describe_by_store(
     )
 
 
+def describe_by_month(rows: list, scope: str, metric: str = "net_revenue", lowest: bool = False) -> str:
+    """逐月对照：先说最高（或最低）的那个月，再按时间顺序列出每个月。"""
+    usable = [(window, result) for window, result in rows if result.get(metric) is not None]
+    if not usable:
+        return "%s：区间内没有销售记录。" % scope
+    pick_window, pick = (min if lowest else max)(usable, key=lambda row: row[1][metric])
+    label = METRIC_LABELS.get(metric, metric)
+    pieces = ["%s %s" % (window_label(*window), metric_value(metric, result)) for window, result in usable]
+    return "%s 各月%s%s的是 %s，为 %s；逐月：%s。" % (
+        scope,
+        label,
+        "最低" if lowest else "最高",
+        window_label(*pick_window),
+        metric_value(metric, pick),
+        "，".join(pieces),
+    )
+
+
 def describe_category(result: dict, scope: str) -> str:
     items = result.get("categories") or []
     if not items:

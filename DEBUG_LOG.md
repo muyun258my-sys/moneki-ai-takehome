@@ -478,3 +478,12 @@
 - **根因**：`starter/kbqa/answerer.py` 的 `_answer_data` 除 compare 外只按 `plan.window` 取一次数。
 - **修复**：本次提交。planner 把解析出的窗口（最多 3 个）记进 `plan.slots["windows"]`；`_answer_data` 把各路线的取数与描述抽成 `_describe_window`，非 compare 时每个窗口各查一次、各答一句，合并后受 1200 字上限约束。compare、价格、目标、异常路线不变。
 - **回归测试**：`tests/test_chat.py::test_each_named_month_answered`（修复前 2 例都只查了 6 月）。
+
+## #51 「哪家店订单最多」「7 月哪家店退款最少」没有查库（L3 路由）
+
+- **现象**：`哪家店订单最多` 引用了 KB-030 门店档案，`7 月哪家店退款最少` 直接拒答，都没有调用数据工具。
+- **假设**：「订单最多」「退款最少」没被认成指标，planner 判定问句里没有可查的东西，只好去知识库。
+- **验证**：`find_metric` 返回 None，`may_query` 为假，所以 kind=doc。#48 的比较式只认「(更/要/还)多/少」，不认「最多/最少」。
+- **根因**：`starter/kbqa/entities.py` 的 `_THAN` 少了「最」。
+- **修复**：本次提交。`_THAN` 的程度词加上「最」，两句现在都走 by_store。（by_store 的描述始终按净营业额排序，是另一个问题，见 #52。）
+- **回归测试**：`tests/test_chat.py::test_superlative_metric_routes_to_data`（修复前一句走 doc、一句拒答）。

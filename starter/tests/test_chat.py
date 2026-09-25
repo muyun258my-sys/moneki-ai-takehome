@@ -189,3 +189,10 @@ def test_bare_how_much_asks_current_price(chat, question, cite, price):
     result = chat.chat("price-" + question, question)
     assert result["citations"][0]["doc_id"] == cite
     assert price in result["answer"]
+
+
+def test_who_question_not_answered_by_the_entity_it_names(chat):
+    """“S01 店长是谁”：写着 S01 自己店名的那一行不是答案，店长那一行才是。"""
+    result = chat.chat("who-s01", "S01 店长是谁")
+    assert result["citations"][0]["doc_id"] == "KB-030"
+    assert "周岚" in result["answer"]

@@ -397,3 +397,12 @@
 - **根因**：`starter/kbqa/planner.py` 的 `_build_search_query` 只去掉了「现在/的时候」，已解析的时间短语仍留在闸门的输入里。
 - **修复**：本次提交。新增 `topic_question` 槽位：把 `spec.labels` 里的时间短语（容许中间有空格）换成空格，`answerer._should_refuse` 改用它。检索仍用带时间的句子（「7 月 24 日」「618」要能对上正文）。
 - **回归测试**：`tests/test_chat.py::test_month_prefix_does_not_trip_refusal_gate`（修复前拒答）。
+
+## #42 追问「那现在呢」仍按上一轮的旧版回答（L3 多轮 / 版本）
+
+- **现象**：先问 `6 月的时候会员充 500 送多少？`（KB-010，50 元，正确），再问 `那现在呢`，答的还是 KB-010。先问 `储值充值以前的赠送规则是什么？` 再问 `那现在呢`，也是一样。
+- **假设**：追问还原把上一轮的时间和「以前」原样带了过来。
+- **验证**：还原结果分别是 `6月会员充500送多少？ 现在`（as_of 仍是 06-30）和 `储值充值以前的赠送规则是什么？ 现在`（historical 为真）。
+- **根因**：`starter/kbqa/followup.py` 的 `resolve` 只在追问自带时间区间时才去掉上一轮的时间标签。「现在」不产生区间（`relative_now`），走不到那条分支。
+- **修复**：本次提交。追问是 `relative_now` 时，去掉上一轮的时间标签和 `HISTORICAL_WORDS`，只保留话题。
+- **回归测试**：`tests/test_chat.py::test_follow_up_now_switches_to_current_version`（修复前 2 例引用的都是 KB-010）。

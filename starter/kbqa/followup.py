@@ -85,6 +85,12 @@ class FollowUps:
                 cleaned = cleaned.replace(label, "")
             for word in ("现在", "目前", "当前", "最近"):
                 cleaned = cleaned.replace(word, "")
+        elif new_spec.relative_now:
+            # “那现在呢”问的是现行版：上一轮的“6 月”“以前”要去掉，否则还会按旧版答。
+            for label in old_spec.labels:
+                cleaned = cleaned.replace(label, "")
+            for word in E.HISTORICAL_WORDS:
+                cleaned = cleaned.replace(word, "")
         extra = re.sub(r"^(那么|那|接着|然后)", "", question.strip())
         extra = re.sub(r"(呢)?[？?]?$", "", extra).strip()
         if not (new_spec.windows or new_spec.whole_period) and not E.looks_like_follow_up(question):

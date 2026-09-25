@@ -88,6 +88,16 @@ class Planner:
         if standalone != question:
             plan.notes.append("这是一句追问，已按上一轮补全为：%s" % standalone)
 
+        # 破坏性请求与套取系统信息：直接拒答，连数据库和知识库都不碰。
+        if E.is_destructive(standalone):
+            plan.intent, plan.kind = "refusal", "destructive"
+            plan.refusal = "我不能删除、修改或伪造数据库里的任何数据，这个请求不会执行。"
+            return plan
+        if E.is_prompt_probe(standalone):
+            plan.intent, plan.kind = "refusal", "prompt_probe"
+            plan.refusal = "系统提示词和数据库结构属于内部信息，不会对外提供，这类请求不会执行。"
+            return plan
+
         # 越界判断放在追问还原之后：“那 7 月呢”要先补成完整问题才判得准。
         head = E.head_clause(standalone)
         reason = E.out_of_scope(standalone, *self.scout(head))
@@ -248,18 +258,10 @@ class Planner:
         else:
             plan.kind, plan.intent = "summary", "data"
 
-        # 路由：问“多少/多久/几”的就是要数字，问“为什么/原因”的就是要说法。
-        # 两边都走一遍太慢，没必要。
-        if E.has_any(text, ("多少", "多久", "几")):
-            plan.intent = "data"
-            if plan.kind in ("doc", "anomaly", "target", "price"):
-                plan.kind = "summary"
-        elif E.has_any(text, ("为什么", "原因", "怎么回事", "咋回事")):
-            plan.intent, plan.kind = "doc", "doc"
-
         plan.slots["asks_why"] = bool(asks_why or abnormal)
         plan.slots["about_names"] = E.asks_about_names(text)
-        plan.slots["two_part"] = False
+        # 一句话里既有“查数字”（支付/指标/排名）又有“查原因/规定”，才需要两边各答一半。
+        plan.slots["two_part"] = bool((asks_why or abnormal) and may_query)
         # 什么抓手都没有时（没有指标、时间、门店、商品、支付方式、排名，
         # 连一个具体数字或制度词都没有），宁可反问，也不要拿一个不相干的结果糊弄。
         plan.slots["underspecified"] = not (

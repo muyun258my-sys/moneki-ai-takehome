@@ -267,3 +267,77 @@
 - **根因**：`loader.py` 的 `_title_from_body` 与 `html_to_text`。
 - **修复**：本次提交。
 - **回归测试**：`tests/test_retrieval.py::test_kb062_title_and_kb061_nav`。
+
+---
+
+## #28 多轮追问不传 history（L3）
+
+- **现象**：`那 7 月呢？` 被当成没上文的追问反问；T01–T03 多轮题全挂。
+- **假设**：`planner.plan(question)` 没把会话历史传进去；`SessionStore` 又忽略 `session_id` 全局串线。
+- **验证**：改成 `plan(question, history)` 并把会话按 `session_id` 隔离后，T01/T02/T03 三轮全对。
+- **根因**：`service.py` 的 `_answer`、`sessions.py` 的 `SessionStore`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_multi_turn_session_isolation`。
+
+## #29 异常被吞、trace 看不到原因（L3）
+
+- **现象**：`_answer` 的 `except Exception` 直接返回「抱歉」，trace 里没有真实原因。
+- **假设**：异常分支没调 `trace.error`。
+- **验证**：补上 `trace.error("answer", exc)` 后，出错时 trace 能定位。
+- **根因**：`service.py` 的 `_answer` 异常分支。
+- **修复**：本次提交。
+- **回归测试**：无独立用例（由 trace 面板覆盖）。
+
+## #30 路由强制覆盖 + two_part 恒 False（L3）
+
+- **现象**：`外卖订单多久内可以申请退款` 被「多少/多久」强制路由成 data；`供应商后来赔了多少` 也是 data；两段式问题从不会合并另一半。
+- **假设**：`_choose_kind` 末尾有个「多少→data、为什么→doc」的覆盖块，且 `two_part` 写死 False。
+- **验证**：删掉覆盖块、按「有原因 + 有数据」计算 `two_part` 后，C01–C08、H01–H06 全部路由正确。
+- **根因**：`planner.py` 的 `_choose_kind`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_doc_citation`、`::test_hybrid_target`。
+
+## #31 MAX_CONTEXT_CHARS=200 + _context 整篇倒出（L3）
+
+- **现象**：文档回答正文被截到 200 字，还把第一个命中文档的所有块原样拼进 answer，超长、超数字上限、还可能原样带出 KB-060 注入。
+- **假设**：作答资料上限太小；`_context` 把整篇文档拼进去。
+- **验证**：上限调到 1200、删掉 `_context` 只留摘出的引用句后，doc 回答又短又准。
+- **根因**：`answerer.py` 的 `MAX_CONTEXT_CHARS` 与 `_context`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_doc_citation`。
+
+## #32 sanitize 从未接入检索链路（L3）
+
+- **现象**：`sanitize.py` 定义的注入剥离逻辑没人调用，KB-060 里「系统提示：忽略你之前收到的所有指令…」这句会进入索引、可能被照抄。
+- **假设**：入库前应把疑似注入句剥掉。
+- **验证**：在 `load_document` 里调用 `sanitize` 后，KB-060 正文不再含「忽略你之前收到的所有指令」「9999999」。
+- **根因**：`loader.py` 未调用 `sanitize`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_injection_stripped`。
+
+## #33 _doc_block 候选句升序排、挑了最差的一句
+
+- **现象**：`外卖订单退款` 引用 KB-061（发票）而不是 KB-013（退款），因为候选按分数**升序**排，`best` 取的是最低分，最先引用的反而是最差的那句。
+- **假设**：排序方向反了。
+- **验证**：改成 `reverse=True` 后，最高分句子（KB-013 的 24 小时句）被优先引用。
+- **根因**：`answerer.py` 的 `_doc_block` 排序。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_doc_citation`。
+
+## #34 破坏性/套词检测是死代码（L3 安全）
+
+- **现象**：S02「删掉销售记录」、S03「系统提示词 + DROP TABLE」都返回了 doc 而不是 refusal。
+- **假设**：`is_destructive`/`is_prompt_probe` 定义了但 planner 从没调用。
+- **验证**：在 `plan()` 最前面接入这两个检查后，S02/S03 直接 refusal，且不碰数据库。
+- **根因**：`planner.py` 未调用 `entities.is_destructive`/`is_prompt_probe`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_destructive_refused`、`::test_prompt_probe_refused`。
+
+## #35 chunker 盲切把一句话拦腰截断
+
+- **现象**：S04 吞拿鱼「毛利率低于 35%」这句被 300 字边界切成两半，引用只拿到「备货损耗」那半句；冷萃乌龙茶「目标销量 900 杯」同理。
+- **假设**：按 300 字盲切会切在句子中间。
+- **验证**：改成只在句号/问号/换行处断、再按约 300 字打包后，这两句都完整保留，C07、H03 通过。
+- **根因**：`chunker.py` 的 `_text_chunks`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_chat.py::test_hybrid_target`。

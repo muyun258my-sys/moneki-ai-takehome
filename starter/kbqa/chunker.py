@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from .loader import Document
 
 #: 切块参数变了，索引缓存必须失效，所以写进缓存键里。
-CHUNKER_VERSION = "chunker-3"
+CHUNKER_VERSION = "chunker-4"
 
 CHUNK_SIZE = 300
 
@@ -74,11 +74,27 @@ def _split_blocks(text: str) -> list[tuple[str, str]]:
 
 
 def _text_chunks(text: str) -> list[str]:
-    """按 300 字切开，末段不丢。"""
+    """按约 300 字打包，但只在句号/问号/换行处断，不把一句话拦腰截断。"""
     text = text.strip("\n")
     if not text:
         return []
-    return [text[start : start + CHUNK_SIZE] for start in range(0, len(text), CHUNK_SIZE)]
+    boundaries = [match.end() for match in re.finditer(r"[。！？!?\n]", text)]
+    starts = [0] + boundaries
+    ends = starts[1:] + [len(text)]
+    sentences = [
+        text[start:end] for start, end in zip(starts, ends) if text[start:end].strip()
+    ]
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        if current and len(current) + len(sentence) > CHUNK_SIZE:
+            chunks.append(current)
+            current = sentence
+        else:
+            current += sentence
+    if current:
+        chunks.append(current)
+    return chunks or [text]
 
 
 def chunk_document(document: Document) -> list[Chunk]:

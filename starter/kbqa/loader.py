@@ -9,6 +9,8 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+from .sanitize import sanitize as sanitize_text
+
 SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".html", ".htm"}
 
 #: 文件名开头的编号就是 doc_id，与文件格式无关（契约 §0）。
@@ -202,6 +204,10 @@ def load_document(path: Path) -> Optional[Document]:
     doc_id = (match.group(1) if match else "").strip().upper()
     if not doc_id:
         return None
+
+    # 知识库内容是资料不是指令：入库前剥掉疑似注入的句子，避免被照抄进回答。
+    text, dropped = sanitize_text(text)
+    warnings.extend("忽略疑似注入句：%s" % sentence for sentence in dropped)
 
     declared = meta.get("stores")
     stores = declared or _sorted_unique(_STORE_CODE.findall(text))

@@ -168,7 +168,7 @@ class Service:
                 return Answer(answer="没有收到问题内容，请再说一次。", answer_type="clarify")
             history = self.sessions.history(session_id)
             started = time.perf_counter()
-            plan = self.planner.plan(question)
+            plan = self.planner.plan(question, history)
             trace.step("plan", plan.as_trace(), started=started)
             answer = self._run_engine(plan, trace, history)
             self.sessions.append(
@@ -182,10 +182,12 @@ class Service:
                 },
             )
             return answer
-        except Exception:  # noqa: BLE001 - 不管里面出什么事，接口都得给个像样的回答
+        except Exception as exc:  # noqa: BLE001 - 不管里面出什么事，接口都得给个像样的回答
+            trace.error("answer", exc)
             return Answer(
                 answer="抱歉，我暂时无法回答。",
                 answer_type="refusal",
+                notes=[str(exc)],
             )
 
     def _run_engine(self, plan, trace: Trace, history: list[dict]) -> Answer:

@@ -163,3 +163,13 @@ def test_before_month_means_previous_version(chat, question, as_of):
     result = chat.chat("before-" + question, question)
     assert result["citations"][0]["doc_id"] == "KB-010"
     assert "赠送 50 元" in result["answer"]
+
+
+@pytest.mark.parametrize("question", ["去年 618 活动价多少？", "2025 年 618 的活动价"])
+def test_named_year_excludes_other_years_plan(chat, question):
+    """问句明说了是哪一年的 618，标题写着另一年的活动方案不能拿来作答。"""
+    result = chat.chat("year-" + question, question)
+    cited = [c["doc_id"] for c in result["citations"]]
+    assert cited[0] == "KB-024"
+    assert "KB-023" not in cited
+    assert "¥25" in result["answer"]

@@ -245,3 +245,11 @@ def test_each_named_month_answered(chat, question):
     assert ("2026-06-01", "2026-06-30") in windows
     assert ("2026-07-01", "2026-07-31") in windows
     assert "6 月" in result["answer"] and "7 月" in result["answer"]
+
+
+@pytest.mark.parametrize("question", ["哪家店订单最多", "7 月哪家店退款最少"])
+def test_superlative_metric_routes_to_data(chat, question):
+    """“订单最多”“退款最少”点的就是订单数、退款金额，是在问数，不是问规定。"""
+    result = chat.chat("most-" + question, question)
+    assert result["answer_type"] == "data"
+    assert result["data_evidence"][0]["tool"] == "by_store"

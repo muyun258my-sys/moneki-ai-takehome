@@ -487,3 +487,12 @@
 - **根因**：`starter/kbqa/entities.py` 的 `_THAN` 少了「最」。
 - **修复**：本次提交。`_THAN` 的程度词加上「最」，两句现在都走 by_store。（by_store 的描述始终按净营业额排序，是另一个问题，见 #52。）
 - **回归测试**：`tests/test_chat.py::test_superlative_metric_routes_to_data`（修复前一句走 doc、一句拒答）。
+
+## #52 分店排名总按净营业额从高到低说（L3 数据）
+
+- **现象**：#51 之后 `哪家店订单最多`、`7 月哪家店退款最少` 调用了 by_store，但回答都是「净营业额最高的是 S02」。
+- **假设**：分店排名的描述函数没有用问句里的指标和方向。
+- **验证**：by_store 的结果里每家店都有订单数、退款金额等全部指标；`render.describe_by_store` 写死了按 net_revenue 降序，也写死了「最高」。
+- **根因**：`starter/kbqa/render.py` 的 `describe_by_store` 不接收指标和方向，answerer 也没传。
+- **修复**：本次提交。`describe_by_store` 接收 `metric` 和 `lowest`，按问的指标排序，单位用 `metric_value`。问句带「最低/最少/最差/垫底」（`entities.LOWEST_WORDS`）时从低往高说。默认的「净营业额最高」输出与原来逐字一致。
+- **回归测试**：`tests/test_chat.py::test_store_ranking_uses_asked_metric`（期望的门店从 evidence 里的工具结果算出来，不写死店名；修复前 2 例都答净营业额最高的 S02）。

@@ -113,21 +113,27 @@ def describe_top(result: dict, scope: str, limit: int = 3) -> str:
     return "%s 卖得最好的是%s。" % (scope, "；".join(pieces))
 
 
-def describe_by_store(result: dict, scope: str, limit: int = 5) -> str:
-    stores = result.get("stores") or []
+def describe_by_store(
+    result: dict, scope: str, metric: str = "net_revenue", lowest: bool = False, limit: int = 5
+) -> str:
+    """分店排名：按问的指标排，问“最少/最低”就从低往高说。"""
+    stores = [store for store in result.get("stores") or [] if store.get(metric) is not None]
     if not stores:
         return "%s：区间内没有销售记录。" % scope
+    stores.sort(key=lambda store: store[metric], reverse=not lowest)
+    label = METRIC_LABELS.get(metric, metric)
     pieces = [
-        "%s %s 净营业额 %s 元"
-        % (store["store_id"], store.get("store_name", ""), money(store["net_revenue"]))
+        "%s %s %s %s" % (store["store_id"], store.get("store_name", ""), label, metric_value(metric, store))
         for store in stores[:limit]
     ]
     top = stores[0]
-    return "%s 净营业额最高的是 %s %s，为 %s 元；各店依次为：%s。" % (
+    return "%s %s%s的是 %s %s，为 %s；各店依次为：%s。" % (
         scope,
+        label,
+        "最低" if lowest else "最高",
         top["store_id"],
         top.get("store_name", ""),
-        money(top["net_revenue"]),
+        metric_value(metric, top),
         "，".join(pieces),
     )
 

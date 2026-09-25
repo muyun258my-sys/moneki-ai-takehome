@@ -55,3 +55,21 @@ def test_hybrid_target(chat):
     assert result["answer_type"] == "hybrid"
     assert any(citation["doc_id"] == "KB-028" for citation in result["citations"])
     assert "900" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "question, window",
+    [
+        ("S01 7月的净营业额", ("2026-07-01", "2026-07-31")),
+        ("S02 8 月 17 日为什么没有营业额", ("2026-08-17", "2026-08-17")),
+        ("S03 6 月 8 日到 14 日营业额", ("2026-06-08", "2026-06-14")),
+        ("P06 6月销量", ("2026-06-01", "2026-06-30")),
+    ],
+)
+def test_time_after_code_with_space(question, window):
+    """编号和月份之间隔着空格时，不能把编号的尾数粘成“17 月”“36 月”。"""
+    from datetime import date
+
+    from kbqa.timeparse import parse_time
+
+    assert parse_time(question, date(2026, 9, 1)).windows == [window]

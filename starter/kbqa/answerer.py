@@ -8,7 +8,7 @@ from typing import Optional
 
 from . import render
 from .docfacts import DocFacts, carries
-from .entities import LOWEST_WORDS, Catalog, expected_value_kind, focus_kinds, has_any
+from .entities import LOWEST_WORDS, RANK_WORDS, Catalog, expected_value_kind, focus_kinds, has_any
 from .hybrid import HybridAnswers
 from .planner import Plan
 from .retriever import Retriever, SearchResult
@@ -349,7 +349,13 @@ class Answerer(HybridAnswers):
                 store_id=plan.store_id,
                 product_id=plan.product_id,
             )
-            return render.describe_daily(result, scope)
+            ranked = has_any(plan.standalone, RANK_WORDS)
+            return render.describe_daily(
+                result,
+                scope,
+                metric=plan.metric if ranked else None,
+                lowest=has_any(plan.standalone, LOWEST_WORDS),
+            )
         result = self._call(
             evidence,
             "query_metrics",

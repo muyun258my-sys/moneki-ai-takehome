@@ -508,3 +508,16 @@
   - 问数路线上，问句带这些词且区间跨了不止一个月时，kind=by_month：每个月调一次 query_metrics（每次都记进 data_evidence），`render.describe_by_month` 先说最高（问最低时说最低）的那个月，再按时间顺序列出各月。
   - 只在问数路线上生效，`员工每月可以享受几次折扣` 照旧走知识库。
 - **回归测试**：`tests/test_chat.py::test_month_breakdown`（期望的月份从 evidence 算出；修复前 3 例都没有逐月查询）。
+
+## #54 「7 月营业额最高的一天是哪天」答成了商品排名（L3 数据）
+
+- **现象**：`7 月营业额最高的一天是哪天` 回答「卖得最好的是牛肉poke」，`8 月哪天订单最少` 也一样，都没有给出日期。
+- **假设**：「哪天」没被当成逐日的问法，排名词把它带到了 top_products。
+- **验证**：`DAILY_WORDS` 只有每天、逐日、按天……，没有「哪天/哪一天」，所以 `asks_rank` 先命中，kind=top_products。`describe_daily` 也只会按时间顺序列出前 7 天，不会指出哪一天最高。
+- **根因**：`starter/kbqa/planner.py` 缺少「问哪一天」的路由；`starter/kbqa/render.py` 的 `describe_daily` 不支持按指标找极值。
+- **修复**：本次提交。
+  - 新增 `entities.WHICH_DAY_WORDS`，区间不止一天时走 daily。
+  - 问句带排名词时，`describe_daily` 按问的指标（逐日结果里有净营业额、订单数、客单价）和方向先说是哪一天，再列逐日明细。
+  - 问的指标逐日结果里没有（如销量）时，如实说明，改按净营业额说。
+  - 不带排名词的逐日问题，输出与原来一致。
+- **回归测试**：`tests/test_chat.py::test_peak_day`（期望的日期从 evidence 算出；修复前 2 例都调用的是 top_products）。

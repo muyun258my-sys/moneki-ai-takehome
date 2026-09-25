@@ -173,9 +173,30 @@ def describe_category(result: dict, scope: str) -> str:
     )
 
 
-def describe_daily(result: dict, scope: str, limit: int = 7) -> str:
+def describe_daily(
+    result: dict, scope: str, limit: int = 7, metric: Optional[str] = None, lowest: bool = False
+) -> str:
+    """逐日净营业额。问了“哪天最高/最少”（给了 metric）时，先说是哪一天。"""
     days = result.get("days") or []
     shown = days[:limit]
     pieces = ["%s %s 元" % (day["date"], money(day["net_revenue"])) for day in shown]
     tail = "（共 %d 天，只列前 %d 天）" % (len(days), len(shown)) if len(days) > len(shown) else ""
-    return "%s 每日净营业额：%s。%s" % (scope, "，".join(pieces), tail)
+    text = "%s 每日净营业额：%s。%s" % (scope, "，".join(pieces), tail)
+    note = ""
+    if metric and metric not in ("net_revenue", "orders", "aov"):
+        # 逐日结果只有净营业额、订单数和客单价；问别的指标时如实说明，按净营业额说哪一天。
+        note = "逐日数据里没有%s，下面按净营业额说。" % METRIC_LABELS.get(metric, metric)
+        metric = "net_revenue"
+    usable = [day for day in days if metric and day.get(metric) is not None]
+    if not usable:
+        return text
+    pick = (min if lowest else max)(usable, key=lambda day: day[metric])
+    return "%s%s %s%s的一天是 %s，为 %s；%s" % (
+        note,
+        scope,
+        METRIC_LABELS[metric],
+        "最低" if lowest else "最高",
+        pick["date"],
+        metric_value(metric, pick),
+        text,
+    )

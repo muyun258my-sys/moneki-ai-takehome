@@ -261,6 +261,8 @@ class Planner:
             plan.kind, plan.intent = "payment", "data"
         elif E.has_any(text, E.MONTHLY_WORDS) and len(months_in(plan.window)) > 1:
             plan.kind, plan.intent = "by_month", "data"
+        elif E.has_any(text, E.WHICH_DAY_WORDS) and plan.window[0] != plan.window[1]:
+            plan.kind, plan.intent = "daily", "data"
         elif asks_rank and E.has_any(text, E.CATEGORY_WORDS):
             plan.kind, plan.intent = "category", "data"
         elif E.has_any(text, E.STORE_WORDS) and not plan.store_id:

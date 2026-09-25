@@ -11,7 +11,8 @@ from typing import Optional
 _CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
               "七": 7, "八": 8, "九": 9, "十": 10}
 
-_NUM = r"\d{1,2}|[一二三四五六七八九十]{1,3}"
+#: 阿拉伯数字前面不能紧挨着字母或数字：“S017月”里的 17 是门店编号的尾巴，不是月份。
+_NUM = r"(?<![A-Za-z\d])\d{1,2}|[一二三四五六七八九十]{1,3}"
 _MONTH = re.compile(r"(%s)\s*月(?:份)?" % _NUM)
 _YEAR = re.compile(r"(20\d{2})\s*年")
 _FULL_DATE = re.compile(r"(20\d{2})[-/年]\s*(\d{1,2})[-/月]\s*(\d{1,2})\s*[日号]?")
@@ -35,6 +36,12 @@ RELATIVE_FUTURE = {
     "明天": 1, "后天": 2, "下周": 7, "下个星期": 7, "下星期": 7, "未来": 7,
     "接下来": 7, "下个月": 30, "下月": 30, "明年": 365, "以后": 30, "之后": 7,
 }
+
+
+def _squash(text: str) -> str:
+    """去掉空白，但“S01 7月”这种编号和数字之间的空格留一个分隔符，免得粘成“S017月”。"""
+    text = re.sub(r"(?<=[A-Za-z\d])\s+(?=\d)", "|", text or "")
+    return re.sub(r"\s+", "", text)
 
 
 def cn_number(text: str) -> Optional[int]:
@@ -91,7 +98,7 @@ def _clamp_day(year: int, month: int, day: int) -> date:
 def parse_time(text: str, today: date) -> TimeSpec:
     """把问句里的时间说法解析成闭区间。找不到时间就返回空的 TimeSpec。"""
     spec = TimeSpec()
-    cleaned = text.replace(" ", "")
+    cleaned = _squash(text)
     year_match = _YEAR.search(cleaned)
     year = int(year_match.group(1)) if year_match else None
     if "去年" in cleaned:
@@ -277,7 +284,7 @@ def _month_and_day_windows(
 
 def loose_days(text: str) -> list[int]:
     """只说了“8 号”没说月份时，把日号拿出来，交给追问用上一轮的月份补全。"""
-    cleaned = text.replace(" ", "")
+    cleaned = _squash(text)
     if _MONTH.search(cleaned):
         return []
     days = [cn_number(match.group(1)) for match in _DAY.finditer(cleaned)]

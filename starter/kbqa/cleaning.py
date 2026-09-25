@@ -28,25 +28,30 @@ def parse_amount(value: Optional[str]) -> tuple[Optional[int], str]:
     """返回 (分, 状态)。状态取值：`ok`、`empty`、`bad`。
 
     KB-001 §2.3 与 §3.2：`¥38.00` 与 `38.00` 是同一个金额；空金额直接剔除，**不回填**。
+    `Infinity` / `NaN` 等非有限值按 `bad` 处理，不参与统计。
     """
     text = (value or "").translate(_CURRENCY)
     if not text:
         return None, "empty"
     try:
-        cents = int((Decimal(text) * 100).to_integral_value())
-    except (InvalidOperation, ValueError):
+        amount = Decimal(text)
+        if not amount.is_finite():
+            return None, "bad"
+        cents = int((amount * 100).to_integral_value())
+    except (InvalidOperation, ValueError, OverflowError):
         return None, "bad"
     return cents, "ok"
 
 
 def parse_qty(value: Optional[str]) -> Optional[int]:
-    """KB-001 §2.4：按整数解析。解析不了的按 0 处理，会被 §3.3 剔除。"""
+    """KB-001 §2.4：按整数解析。空、非整数（小数/科学计数/Infinity）解析失败时
+    返回 None，之后由 §3.3（qty ≤ 0）统一剔除，不做截断。"""
     text = (value or "").strip()
     if not text:
         return None
     try:
-        return int(Decimal(text))
-    except (InvalidOperation, ValueError):
+        return int(text)
+    except ValueError:
         return None
 
 
@@ -97,8 +102,10 @@ class CleaningReport:
 
 
 def open_readonly(path: Path) -> sqlite3.Connection:
-    """打开数据库。"""
-    conn = sqlite3.connect(path.as_posix(), check_same_thread=False)
+    """以只读模式打开数据库（`mode=ro`），任何写操作都会在 SQLite 层失败。"""
+    conn = sqlite3.connect(
+        path.resolve().as_uri() + "?mode=ro", uri=True, check_same_thread=False
+    )
     conn.row_factory = sqlite3.Row
     return conn
 

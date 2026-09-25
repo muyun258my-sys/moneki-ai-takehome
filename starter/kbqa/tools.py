@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import threading
 from datetime import date, timedelta
@@ -22,6 +23,30 @@ def yuan(cents: int) -> float:
 def round2(value: Decimal) -> float:
     """四舍五入保留 2 位（KB-001 §4 的客单价口径，不用银行家舍入）。"""
     return float(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+_SQL_WRITE_RE = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|truncate)\b",
+    re.IGNORECASE,
+)
+
+
+def _sql_guard(sql: str) -> Optional[str]:
+    """校验 SQL 是否是一条只读查询；返回错误原因，None 表示通过。"""
+    text = (sql or "").strip()
+    if not text:
+        return "SQL 为空"
+    if text.count(";") > 1:
+        return "只允许一条查询语句"
+    tokens = text.split()
+    if not tokens or tokens[0].upper() not in ("SELECT", "WITH"):
+        return "只允许 SELECT / WITH 开头的只读查询"
+    if "from" not in text.lower():
+        return "查询必须带 FROM"
+    m = _SQL_WRITE_RE.search(text)
+    if m:
+        return "出现写操作关键字 %s" % m.group(0)
+    return None
 
 
 class DataTools:
@@ -72,10 +97,12 @@ class DataTools:
         return int(self.conn.execute("SELECT COUNT(*) FROM sales_clean").fetchone()[0])
 
     def run_sql(self, sql: str) -> dict:
-        """执行一条 SQL。工具覆盖不到的查法，让模型自己写。"""
+        """执行一条只读 SQL。只允许单条 SELECT/WITH 查询，写操作一律拒绝。"""
+        problem = _sql_guard(sql)
+        if problem:
+            return {"sql": sql, "rows": [], "row_count": 0, "error": problem}
         cursor = self.conn.execute(sql)
         rows = [dict(row) for row in cursor.fetchall()] if cursor.description else []
-        self.conn.commit()
         return {"sql": sql, "rows": rows[:50], "row_count": len(rows)}
 
     def stores(self) -> list[dict]:
@@ -96,9 +123,11 @@ class DataTools:
         row = self.conn.execute(
             """
             SELECT COALESCE(SUM(amount_cents), 0),
-                   COALESCE(SUM(CASE WHEN is_refund = 1 THEN amount_cents ELSE 0 END), 0),
-                   COUNT(DISTINCT CASE WHEN is_refund = 0 THEN order_id END),
-                   COALESCE(SUM(CASE WHEN is_refund = 0 THEN qty ELSE -qty END), 0)
+                   COALESCE(SUM(CASE WHEN amount_cents < 0 THEN amount_cents ELSE 0 END), 0),
+                   COUNT(DISTINCT CASE WHEN amount_cents > 0 THEN order_id END),
+                   COALESCE(SUM(CASE WHEN amount_cents > 0 THEN qty
+                                     WHEN amount_cents < 0 THEN -qty
+                                     ELSE 0 END), 0)
             FROM sales_clean WHERE %s
             """
             % where,
@@ -125,7 +154,7 @@ class DataTools:
             """
             SELECT date,
                    COALESCE(SUM(amount_cents), 0),
-                   COUNT(DISTINCT CASE WHEN is_refund=0 THEN order_id END)
+                   COUNT(DISTINCT CASE WHEN amount_cents > 0 THEN order_id END)
             FROM sales_clean WHERE %s GROUP BY date
             """
             % where,
@@ -155,9 +184,11 @@ class DataTools:
         rows = self.conn.execute(
             """
             SELECT payment,
-                   COUNT(DISTINCT CASE WHEN is_refund=0 THEN order_id END),
+                   COUNT(DISTINCT CASE WHEN amount_cents > 0 THEN order_id END),
                    COALESCE(SUM(amount_cents), 0),
-                   COALESCE(SUM(CASE WHEN is_refund=0 THEN qty ELSE -qty END), 0)
+                   COALESCE(SUM(CASE WHEN amount_cents > 0 THEN qty
+                                     WHEN amount_cents < 0 THEN -qty
+                                     ELSE 0 END), 0)
             FROM sales_clean WHERE %s GROUP BY payment
             """
             % where,
@@ -190,8 +221,10 @@ class DataTools:
             """
             SELECT s.product_id, p.product_name, p.product_category,
                    COALESCE(SUM(s.amount_cents), 0),
-                   COUNT(DISTINCT CASE WHEN s.is_refund=0 THEN s.order_id END),
-                   COALESCE(SUM(CASE WHEN s.is_refund=0 THEN s.qty ELSE -s.qty END), 0)
+                   COUNT(DISTINCT CASE WHEN s.amount_cents > 0 THEN s.order_id END),
+                   COALESCE(SUM(CASE WHEN s.amount_cents > 0 THEN s.qty
+                                     WHEN s.amount_cents < 0 THEN -s.qty
+                                     ELSE 0 END), 0)
             FROM sales_clean s LEFT JOIN products p ON p.product_id = s.product_id
             WHERE %s GROUP BY s.product_id ORDER BY 4 DESC
             """
@@ -258,7 +291,7 @@ class DataTools:
 
     def first_sale_date(self, product_id: str) -> Optional[str]:
         row = self.conn.execute(
-            "SELECT MIN(date) FROM sales_clean WHERE product_id = ? AND is_refund = 0",
+            "SELECT MIN(date) FROM sales_clean WHERE product_id = ? AND amount_cents > 0",
             (product_id.strip().upper(),),
         ).fetchone()
         return row[0] if row and row[0] else None
@@ -277,7 +310,7 @@ class DataTools:
         rows = self.conn.execute(
             """
             SELECT date, amount_cents, qty, store_id FROM sales_clean
-            WHERE product_id = ? AND is_refund = 0 AND qty > 0 AND date >= ? AND date <= ?%s
+            WHERE product_id = ? AND amount_cents > 0 AND qty > 0 AND date >= ? AND date <= ?%s
             ORDER BY date
             """
             % clause,

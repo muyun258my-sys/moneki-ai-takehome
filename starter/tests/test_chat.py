@@ -82,3 +82,17 @@ def test_follow_up_swaps_store_keeps_month(chat):
     params = result["data_evidence"][0]["params"]
     assert params["store_id"] == "S02"
     assert (params["start"], params["end"]) == ("2026-06-01", "2026-06-30")
+
+
+@pytest.mark.parametrize(
+    "question, field, value",
+    [
+        ("6 月份一共有多少订单", "orders", 4311),
+        ("牛肉poke 6 月卖了多少", "qty", 545),
+    ],
+)
+def test_colloquial_metric_routes_to_data(chat, question, field, value):
+    """“多少订单”“卖了多少”是在问数，必须查库，不能拿周报估算数作答。"""
+    result = chat.chat("colloquial-" + field, question)
+    assert result["answer_type"] == "data"
+    assert result["data_evidence"][0]["result"][field] == value

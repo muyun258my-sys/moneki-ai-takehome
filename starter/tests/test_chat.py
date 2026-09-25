@@ -73,3 +73,12 @@ def test_time_after_code_with_space(question, window):
     from kbqa.timeparse import parse_time
 
     assert parse_time(question, date(2026, 9, 1)).windows == [window]
+
+
+def test_follow_up_swaps_store_keeps_month(chat):
+    """“那 S02 呢”只换门店：月份沿用上一轮，门店以这一句点名的为准。"""
+    chat.chat("swap", "S01 6 月营业额多少")
+    result = chat.chat("swap", "那 S02 呢？")
+    params = result["data_evidence"][0]["params"]
+    assert params["store_id"] == "S02"
+    assert (params["start"], params["end"]) == ("2026-06-01", "2026-06-30")

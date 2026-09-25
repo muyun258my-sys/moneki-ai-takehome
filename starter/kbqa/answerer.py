@@ -319,7 +319,9 @@ class Answerer(HybridAnswers):
 
     def _should_refuse(self, plan: Plan, confidence: float, top_score: float) -> Optional[str]:
         """三个信号一起判断“知识库里到底有没有这件事”。"""
-        vocab = self.facts.vocab_coverage(plan.slots.get("clean_question") or plan.standalone)
+        vocab = self.facts.vocab_coverage(
+            plan.slots.get("topic_question") or plan.slots.get("clean_question") or plan.standalone
+        )
         if vocab < VOCAB_HARD_GATE:
             return "问题里的关键词在知识库里一个都找不到（词表覆盖率 %.2f）" % vocab
         if vocab < VOCAB_SOFT_GATE and top_score < RETRIEVAL_SOFT_GATE:

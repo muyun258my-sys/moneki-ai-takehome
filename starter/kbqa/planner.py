@@ -309,6 +309,12 @@ class Planner:
         for word in ("现在", "今天", "目前", "当前", "此刻", "的时候"):
             text = text.replace(word, "")
         plan.slots["clean_question"] = text.strip() or plan.standalone
+        # 越界闸门只看“问的是什么事”：时间已经解析成窗口和生效日期，留着“6 月”会和后面的词
+        # 拼出“月会”这种跨词二元组，把覆盖率压低。检索仍用带时间的句子（“7 月 24 日”要能对上）。
+        topic = text
+        for label in spec.labels:
+            topic = re.sub(r"\s*".join(map(re.escape, label.replace("|", ""))), " ", topic)
+        plan.slots["topic_question"] = topic.strip() or plan.slots["clean_question"]
         parts = [plan.slots["clean_question"]]
         if plan.store_id:
             parts.append("%s %s" % (plan.store_id, self.catalog.store_name(plan.store_id)))

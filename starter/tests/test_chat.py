@@ -225,3 +225,13 @@ def test_metric_named_by_comparative(chat, question, word):
     assert result["data_evidence"][0]["tool"] == "compare_periods"
     first_line = result["answer"].split("\n")[0]
     assert word in first_line and "净营业额" not in first_line
+
+
+def test_follow_up_two_months_compared(chat):
+    """“那 7 月比 6 月呢”：问句里两个月份夹着一个“比”，就是在比较，不必再说多还是少。"""
+    chat.chat("cmp-follow", "S01 6 月营业额")
+    result = chat.chat("cmp-follow", "那 7 月比 6 月呢")
+    evidence = result["data_evidence"][0]
+    assert evidence["tool"] == "compare_periods"
+    assert evidence["params"]["store_id"] == "S01"
+    assert {evidence["params"]["start_a"], evidence["params"]["start_b"]} == {"2026-06-01", "2026-07-01"}

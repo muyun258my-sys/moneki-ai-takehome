@@ -304,6 +304,24 @@ FOCUS_WORDS = (
 )
 
 
+#: 问的是一个号码本身：“手机号是多少”“电话多少”“怎么联系”。只是提到“手机”“电话”不算
+#: （“只带手机的顾客”“会员手机号后四位怎么核对”）。
+_ASKS_MOBILE = re.compile(r"手机(号码?)?(是)?(多少|几号)")
+_ASKS_PHONE = re.compile(r"(电话(号码)?|号码)(是)?(多少|几号)|联系方式|怎么联系")
+
+
+def required_value(text: str) -> Optional[str]:
+    """答案必须是某种号码的问题：原文里没有这样的号码，就是知识库没登记，只能拒答。
+
+    问手机号时座机不算——那是另一个号码，拿它充数等于答非所问。
+    """
+    if _ASKS_MOBILE.search(text or ""):
+        return "mobile"
+    if _ASKS_PHONE.search(text or ""):
+        return "phone"
+    return None
+
+
 def focus_kinds(text: str) -> list[str]:
     """这句话在问什么形状的答案。按出现顺序返回，可能有多个。
 
@@ -311,6 +329,9 @@ def focus_kinds(text: str) -> list[str]:
     一旦有更具体的焦点，就不要再用“句子里有数字”这种宽泛条件稀释它。
     """
     kinds = [kind for kind, words in FOCUS_WORDS if has_any(text, words)]
+    required = required_value(text)
+    if required:
+        kinds.insert(0, required)
     specific = [kind for kind in kinds if kind != "value"]
     return specific or kinds
 

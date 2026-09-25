@@ -8,7 +8,15 @@ from typing import Optional
 
 from . import render
 from .docfacts import DocFacts, carries
-from .entities import LOWEST_WORDS, RANK_WORDS, Catalog, expected_value_kind, focus_kinds, has_any
+from .entities import (
+    LOWEST_WORDS,
+    RANK_WORDS,
+    Catalog,
+    expected_value_kind,
+    focus_kinds,
+    has_any,
+    required_value,
+)
 from .hybrid import HybridAnswers
 from .planner import Plan
 from .retriever import Retriever, SearchResult
@@ -388,6 +396,12 @@ class Answerer(HybridAnswers):
         body, citations, confidence = self._doc_block(plan, result)
         top_score = result.ranked[0].score if result.ranked else 0.0
         reason = self._should_refuse(plan, confidence, top_score)
+        required = required_value(plan.standalone)
+        if citations and required and not any(carries(required, c["quote"]) for c in citations):
+            # 问的是号码，引用里却没有号码：只是碰巧提到了“手机”“电话”，不是答案。
+            reason = reason or "问的是%s，能引用的原文里没有这样的号码" % (
+                "手机号" if required == "mobile" else "电话号码"
+            )
         if not citations or reason:
             return Answer(
                 answer="知识库里没有找到能回答这个问题的内容，我不能编。"

@@ -209,6 +209,8 @@ class Planner:
         elif spec.whole_period or not windows:
             windows = [(self.data_period["start"], self.data_period["end"])]
         plan.window = windows[0]
+        # “6 月和 7 月的营业额分别是多少”不是比较，但两个月都要答。
+        plan.slots["windows"] = windows[:3]
         explicit_metric = bool(plan.slots.get("metric_explicit"))
         asks_policy = E.has_any(text, E.POLICY_WORDS)
         asks_rank = E.has_any(text, E.RANK_WORDS)

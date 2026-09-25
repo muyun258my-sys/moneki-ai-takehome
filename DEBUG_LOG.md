@@ -469,3 +469,12 @@
 - **根因**：`starter/kbqa/entities.py` 的 `_COMPARE` 太窄。其实 planner 已经要求问句里有两段时间，这时两段时间夹着一个「比」就是在比较，不需要再带上多还是少。
 - **修复**：本次提交。`_COMPARE` 改成：「比」本身就算，但排除「占比/比例/比率/比重/比如」；再加上「多还是少」这类不带「比」的说法。「6 月和 7 月的微信支付占比」照旧走支付构成。
 - **回归测试**：`tests/test_chat.py::test_follow_up_two_months_compared`（修复前调用的是 query_metrics，只查了 6 月）。
+
+## #50 「6 月和 7 月的营业额分别是多少」只答了 6 月（L3 数据）
+
+- **现象**：`6 月和 7 月的营业额分别是多少`、`6 月和 7 月的微信支付占比` 只查了 6 月，7 月没提。
+- **假设**：时间解析给出了两个窗口，但不是比较时，作答只用第一个。
+- **验证**：`parse_time` 返回 6 月、7 月两个窗口；`_choose_kind` 只把 `windows[0]` 放进 `plan.window`，第二个窗口在非 compare 路线上直接丢了。
+- **根因**：`starter/kbqa/answerer.py` 的 `_answer_data` 除 compare 外只按 `plan.window` 取一次数。
+- **修复**：本次提交。planner 把解析出的窗口（最多 3 个）记进 `plan.slots["windows"]`；`_answer_data` 把各路线的取数与描述抽成 `_describe_window`，非 compare 时每个窗口各查一次、各答一句，合并后受 1200 字上限约束。compare、价格、目标、异常路线不变。
+- **回归测试**：`tests/test_chat.py::test_each_named_month_answered`（修复前 2 例都只查了 6 月）。

@@ -266,7 +266,6 @@ class Answerer(HybridAnswers):
             )
         evidence: list[dict] = []
         start, end = plan.window
-        scope = self._scope(plan)
         if plan.kind == "compare":
             first, second = plan.window, plan.compare_window
             result = self._call(
@@ -282,43 +281,12 @@ class Answerer(HybridAnswers):
             text = render.describe_compare(
                 result, plan.metric, self._scope(plan, first), self._scope(plan, second)
             )
-        elif plan.kind == "payment":
-            result = self._call(evidence, "payment_mix", start=start, end=end, store_id=plan.store_id)
-            focus = next(
-                (name for name in result.get("payments", {}) if name in plan.standalone), ""
-            )
-            text = render.describe_payment(result, scope, focus)
-        elif plan.kind == "top_products":
-            result = self._call(
-                evidence, "top_products", start=start, end=end, store_id=plan.store_id, limit=10
-            )
-            text = render.describe_top(result, scope)
-        elif plan.kind == "by_store":
-            result = self._call(evidence, "by_store", start=start, end=end, product_id=plan.product_id)
-            text = render.describe_by_store(result, scope)
-        elif plan.kind == "category":
-            result = self._call(evidence, "by_store_category", start=start, end=end)
-            text = render.describe_category(result, scope)
-        elif plan.kind == "daily":
-            result = self._call(
-                evidence,
-                "daily_metrics",
-                start=start,
-                end=end,
-                store_id=plan.store_id,
-                product_id=plan.product_id,
-            )
-            text = render.describe_daily(result, scope)
         else:
-            result = self._call(
-                evidence,
-                "query_metrics",
-                start=start,
-                end=end,
-                store_id=plan.store_id,
-                product_id=plan.product_id,
-            )
-            text = render.describe_metrics(result, scope, plan.metric)
+            # 问句点了几段时间又不是在比较时，每段各查一次、各答一句。
+            windows = plan.slots.get("windows") or [plan.window]
+            text = "\n".join(
+                self._describe_window(plan, evidence, window) for window in windows
+            )[:MAX_CONTEXT_CHARS]
         if plan.slots.get("asks_why"):
             cause, citations = self._cause_block(plan, start, end, trace)
             if citations:
@@ -330,6 +298,46 @@ class Answerer(HybridAnswers):
                 )
             text += "知识库里没有找到能解释这段时间的通知或说明，所以只能给出数字本身。"
         return Answer(answer=text, answer_type="data", data_evidence=evidence)
+
+    def _describe_window(self, plan: Plan, evidence: list[dict], window) -> str:
+        start, end = window
+        scope = self._scope(plan, window)
+        if plan.kind == "payment":
+            result = self._call(evidence, "payment_mix", start=start, end=end, store_id=plan.store_id)
+            focus = next(
+                (name for name in result.get("payments", {}) if name in plan.standalone), ""
+            )
+            return render.describe_payment(result, scope, focus)
+        if plan.kind == "top_products":
+            result = self._call(
+                evidence, "top_products", start=start, end=end, store_id=plan.store_id, limit=10
+            )
+            return render.describe_top(result, scope)
+        if plan.kind == "by_store":
+            result = self._call(evidence, "by_store", start=start, end=end, product_id=plan.product_id)
+            return render.describe_by_store(result, scope)
+        if plan.kind == "category":
+            result = self._call(evidence, "by_store_category", start=start, end=end)
+            return render.describe_category(result, scope)
+        if plan.kind == "daily":
+            result = self._call(
+                evidence,
+                "daily_metrics",
+                start=start,
+                end=end,
+                store_id=plan.store_id,
+                product_id=plan.product_id,
+            )
+            return render.describe_daily(result, scope)
+        result = self._call(
+            evidence,
+            "query_metrics",
+            start=start,
+            end=end,
+            store_id=plan.store_id,
+            product_id=plan.product_id,
+        )
+        return render.describe_metrics(result, scope, plan.metric)
 
     # -- 纯文档 -----------------------------------------------------------------
 

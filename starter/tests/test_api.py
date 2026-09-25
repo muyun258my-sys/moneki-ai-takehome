@@ -13,6 +13,36 @@ def test_health_ok(client):
     assert body["llm_mode"] == "mock"
 
 
+def test_health_cleaning_report(client):
+    body = client.get("/api/health").json()
+    assert body["valid_sales_rows"] == 18290
+    report = body["cleaning_report"]
+    assert report["raw_rows"] == 18628
+    assert report["kept_rows"] == 18290
+    assert report["kept_sales_rows"] == 18196
+    assert report["kept_refund_rows"] == 94
+    assert report["removed"] == {
+        "1_unparseable_date": 8,
+        "2_empty_amount": 150,
+        "3_qty_le_zero": 30,
+        "4_store_not_in_stores": 10,
+        "5_product_not_in_products": 40,
+        "6_duplicate_row": 100,
+        "note_unparseable_amount": 0,
+    }
+
+
+def test_metrics_summary_m01(client):
+    body = client.get(
+        "/api/metrics/summary", params={"start": "2026-06-01", "end": "2026-06-30"}
+    ).json()
+    assert body["net_revenue"] == pytest.approx(156757.0)
+    assert body["refund_amount"] == pytest.approx(953.0)
+    assert body["orders"] == 4311
+    assert body["aov"] == pytest.approx(36.36)
+    assert body["qty"] == 6496
+
+
 def test_metrics_summary_ok(client):
     response = client.get(
         "/api/metrics/summary", params={"start": "2026-06-01", "end": "2026-06-30"}

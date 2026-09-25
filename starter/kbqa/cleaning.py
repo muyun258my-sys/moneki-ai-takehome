@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable, Optional
@@ -48,6 +50,33 @@ def parse_qty(value: Optional[str]) -> Optional[int]:
         return None
 
 
+def parse_date(value: Optional[str]) -> Optional[str]:
+    """KB-001 §2.2：接受三种日期格式，统一输出 ISO `YYYY-MM-DD`。
+
+    `DD-MM-YYYY` 是旧 POS 的导出格式，**日在前、月在后**；解析不了返回 None。
+    """
+    text = (value or "").strip()
+    if not text:
+        return None
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if m:
+        y, mo, d = int(m[1]), int(m[2]), int(m[3])
+    else:
+        m = re.fullmatch(r"(\d{4})/(\d{1,2})/(\d{1,2})", text)
+        if m:
+            y, mo, d = int(m[1]), int(m[2]), int(m[3])
+        else:
+            m = re.fullmatch(r"(\d{1,2})-(\d{1,2})-(\d{4})", text)
+            if m:
+                d, mo, y = int(m[1]), int(m[2]), int(m[3])
+            else:
+                return None
+    try:
+        return date(y, mo, d).isoformat()
+    except ValueError:
+        return None
+
+
 @dataclass
 class CleaningReport:
     raw_rows: int = 0
@@ -74,25 +103,59 @@ def open_readonly(path: Path) -> sqlite3.Connection:
     return conn
 
 
-def clean_rows(rows: Iterable[sqlite3.Row]) -> tuple[list[tuple], CleaningReport]:
-    """把 sales 原样搬过来。金额解析不了的按 0，日期照抄，查询的时候直接比字符串。"""
+def clean_rows(
+    rows: Iterable[sqlite3.Row],
+    store_ids: set[str],
+    product_ids: set[str],
+) -> tuple[list[tuple], CleaningReport]:
+    """按 KB-001 v3 规范化并剔除，返回清洗后的明细行。
+
+    剔除顺序（§3）：日期无法解析 → 空金额 → qty≤0 → 门店外键 → 商品外键 → 完全重复。
+    """
     report = CleaningReport()
     kept: list[tuple] = []
+    seen: set[tuple] = set()
     for row in rows:
         report.raw_rows += 1
+        order_id = (row["order_id"] or "").strip()
+        iso_date = parse_date(row["date"])
+        if iso_date is None:
+            report.removed["1_unparseable_date"] += 1
+            continue
         cents, status = parse_amount(row["amount"])
-        if status != "ok":
-            cents = 0
-        qty = parse_qty(row["qty"]) or 0
+        if status == "empty":
+            report.removed["2_empty_amount"] += 1
+            continue
+        if status == "bad":
+            report.note_unparseable_amount += 1
+            continue
+        qty = parse_qty(row["qty"])
+        if qty is None or qty <= 0:
+            report.removed["3_qty_le_zero"] += 1
+            continue
+        store_id = (row["store_id"] or "").strip().upper()
+        if store_id not in store_ids:
+            report.removed["4_store_not_in_stores"] += 1
+            continue
+        product_id = (row["product_id"] or "").strip().upper()
+        if product_id not in product_ids:
+            report.removed["5_product_not_in_products"] += 1
+            continue
+        payment = (row["payment"] or "").strip()
+        key = (order_id, iso_date, store_id, product_id, qty, cents, payment)
+        if key in seen:
+            report.removed["6_duplicate_row"] += 1
+            continue
+        seen.add(key)
         kept.append(
             (
-                (row["order_id"] or "").strip(),
-                row["date"],
-                row["store_id"],
-                row["product_id"],
+                order_id,
+                iso_date,
+                store_id,
+                product_id,
                 qty,
                 cents,
-                (row["payment"] or "").strip(),
+                payment,
                 1 if cents < 0 else 0,
             )
         )
@@ -123,15 +186,24 @@ def build_clean_db(source: Path, target: Path) -> CleaningReport:
         raise FileNotFoundError("找不到源数据库：%s" % source)
     src = open_readonly(source)
     try:
-        stores = [tuple(r) for r in src.execute("SELECT store_id, store_name, category, district FROM stores")]
+        stores = [
+            tuple(r)
+            for r in src.execute("SELECT store_id, store_name, category, district FROM stores")
+        ]
         products = [
             tuple(r)
             for r in src.execute(
                 "SELECT product_id, product_name, product_category, unit_price FROM products"
             )
         ]
+        store_ids = {(s[0] or "").strip().upper() for s in stores}
+        product_ids = {(p[0] or "").strip().upper() for p in products}
         rows, report = clean_rows(
-            src.execute("SELECT order_id, date, store_id, product_id, qty, amount, payment FROM sales")
+            src.execute(
+                "SELECT order_id, date, store_id, product_id, qty, amount, payment FROM sales"
+            ),
+            store_ids,
+            product_ids,
         )
     finally:
         src.close()

@@ -132,3 +132,15 @@ def test_month_prefix_does_not_trip_refusal_gate(chat):
     assert result["answer_type"] in ("doc", "hybrid")
     assert result["citations"][0]["doc_id"] == "KB-010"
     assert "赠送 50 元" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "first", ["6 月的时候会员充 500 送多少？", "储值充值以前的赠送规则是什么？"]
+)
+def test_follow_up_now_switches_to_current_version(chat, first):
+    """“那现在呢”问的是现行版：上一轮的“6 月”“以前”不能跟着带过来。"""
+    session = "now-" + first
+    chat.chat(session, first)
+    result = chat.chat(session, "那现在呢")
+    assert result["citations"][0]["doc_id"] == "KB-011"
+    assert "60" in result["answer"]

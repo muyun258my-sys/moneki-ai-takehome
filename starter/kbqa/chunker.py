@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .loader import Document
 
 #: 切块参数变了，索引缓存必须失效，所以写进缓存键里。
-CHUNKER_VERSION = "chunker-2"
+CHUNKER_VERSION = "chunker-3"
 
 CHUNK_SIZE = 300
+
+_TABLE_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
+_TABLE_SEP = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
 
 @dataclass
@@ -34,29 +38,89 @@ class Chunk:
         }
 
 
+def _cells(line: str) -> list[str]:
+    match = _TABLE_ROW.match(line)
+    return [cell.strip() for cell in match.group(1).split("|")] if match else []
+
+
+def _split_blocks(text: str) -> list[tuple[str, str]]:
+    """把正文切成 (kind, raw) 块：`table` 是 Markdown 表格，其余是 `text`。"""
+    lines = text.splitlines()
+    blocks: list[tuple[str, str]] = []
+    buffer: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if (
+            _TABLE_ROW.match(line)
+            and index + 1 < len(lines)
+            and _TABLE_SEP.match(lines[index + 1])
+        ):
+            if buffer:
+                blocks.append(("text", "\n".join(buffer)))
+                buffer = []
+            table = [line, lines[index + 1]]
+            index += 2
+            while index < len(lines) and _TABLE_ROW.match(lines[index]):
+                table.append(lines[index])
+                index += 1
+            blocks.append(("table", "\n".join(table)))
+            continue
+        buffer.append(line)
+        index += 1
+    if buffer:
+        blocks.append(("text", "\n".join(buffer)))
+    return blocks
+
+
+def _text_chunks(text: str) -> list[str]:
+    """按 300 字切开，末段不丢。"""
+    text = text.strip("\n")
+    if not text:
+        return []
+    return [text[start : start + CHUNK_SIZE] for start in range(0, len(text), CHUNK_SIZE)]
+
+
 def chunk_document(document: Document) -> list[Chunk]:
-    """一篇文档按固定长度切开，300 字一块。"""
-    text = document.text
+    """一篇文档切成 text 块和 table 块；text 块 300 字一块、末段保留。"""
     chunks: list[Chunk] = []
-    for number, start in enumerate(range(0, len(text) - CHUNK_SIZE, CHUNK_SIZE), start=1):
-        piece = text[start : start + CHUNK_SIZE]
-        chunks.append(
-            Chunk(
-                doc_id=document.doc_id,
-                chunk_id="%s#%d" % (document.doc_id, number),
-                text=piece,
-                source_text=piece,
-                heading=document.title,
+    number = 0
+    for kind, raw in _split_blocks(document.text):
+        if kind == "table":
+            header = _cells(raw.splitlines()[0])
+            rows = [_cells(line) for line in raw.splitlines()[2:] if _TABLE_ROW.match(line)]
+            flat = " ".join(header + [" ".join(row) for row in rows]).strip()
+            number += 1
+            chunks.append(
+                Chunk(
+                    doc_id=document.doc_id,
+                    chunk_id="%s#%d" % (document.doc_id, number),
+                    text=flat,
+                    source_text=raw,
+                    heading=document.title,
+                    kind="table",
+                    table_header=header,
+                )
             )
-        )
+        else:
+            for piece in _text_chunks(raw):
+                number += 1
+                chunks.append(
+                    Chunk(
+                        doc_id=document.doc_id,
+                        chunk_id="%s#%d" % (document.doc_id, number),
+                        text=piece,
+                        source_text=piece,
+                        heading=document.title,
+                    )
+                )
     if not chunks:
-        piece = text.strip() or document.title
         chunks.append(
             Chunk(
                 doc_id=document.doc_id,
                 chunk_id="%s#1" % document.doc_id,
-                text=piece,
-                source_text=piece,
+                text=document.title,
+                source_text=document.title,
                 heading=document.title,
             )
         )

@@ -4,17 +4,31 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from typing import Callable, Optional
 
 from . import entities as E
 from .timeparse import TimeSpec, loose_days, parse_time, squash
+
+#: 省略主语的追问开口就是动词或疑问词（“用什么替代”“赔了多少”“为什么”），而且很短。
+_ELLIPSIS_HEAD = re.compile(
+    r"^(用|换|赔|补|退|改|为什么|为何|怎么|多少|几|什么|哪|谁|有没有|是不是|要不要|能不能|会不会)"
+)
+_ELLIPSIS_MAX_LEN = 12
 
 
 class FollowUps:
     """需要目录（认门店与商品）和固定的“今天”。"""
 
-    def __init__(self, catalog: E.Catalog, today: date) -> None:
+    def __init__(
+        self,
+        catalog: E.Catalog,
+        today: date,
+        scout: Optional[Callable[[str], tuple[float, float]]] = None,
+    ) -> None:
         self.catalog = catalog
         self.today = today
+        #: 与 planner 同一个探底函数：（词表覆盖率，检索最高分）。
+        self.scout = scout or (lambda text: (1.0, 100.0))
 
     def _is_follow_up(self, question: str, previous: dict) -> bool:
         """这一句是不是接着上一轮说的。
@@ -32,16 +46,29 @@ class FollowUps:
         text = question.strip()
         if len(text) > 26:
             return False
-        if not re.search(
-            r"(后来|之后|然后|还有|再|又|那次|这次|当时|结果|这两|那两|两个月|两者|这段|那一周|这一周)",
-            text,
-        ):
-            return False
         store, _ = self.catalog.find_store(text)
         product, _ = self.catalog.find_product(text)
         # 说了一半的写法（“三文鱼那次断供”）也算自带话题，不能当成无主语的追问。
         loose = self.catalog.aliases.mentions(text) if self.catalog.aliases else []
-        return not (store or product or loose)
+        if store or product or loose:
+            return False
+        if re.search(
+            r"(后来|之后|然后|还有|再|又|那次|这次|当时|结果|这两|那两|两个月|两者|这段|那一周|这一周)",
+            text,
+        ):
+            return True
+        return self._lacks_subject(text)
+
+    def _lacks_subject(self, text: str) -> bool:
+        """“用什么替代？”“赔了多少钱？”：没有“那/后来”，但开口就是动词或疑问词，
+        自己在知识库里几乎查不到东西——这是省略了主语，主语在上一轮。
+
+        “怎么退款？”同样以疑问词开头，但“退款”在知识库里讲得很多，它自己就是一个完整问题。
+        """
+        if len(text) > _ELLIPSIS_MAX_LEN or not _ELLIPSIS_HEAD.match(text):
+            return False
+        coverage, _ = self.scout(text)
+        return coverage < E.MEANINGFUL_COVERAGE
 
     def resolve(self, question: str, history: list[dict]) -> tuple[str, dict]:
         """把“那 7 月呢”还原成完整问题，并带回上一轮的槽位。"""

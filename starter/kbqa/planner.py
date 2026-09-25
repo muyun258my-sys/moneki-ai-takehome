@@ -73,9 +73,9 @@ class Planner:
         self.catalog = catalog
         self.today = today
         self.data_period = data_period
-        self.followups = FollowUps(catalog, today)
-        #: 给一句话“探个底”：返回（词表覆盖率，检索最高分）。越界判断要靠它。
+        #: 给一句话“探个底”：返回（词表覆盖率，检索最高分）。越界判断和省略追问都要靠它。
         self.scout = scout or (lambda text: (1.0, 100.0))
+        self.followups = FollowUps(catalog, today, self.scout)
 
     def plan(self, question: str, history: Optional[list[dict]] = None) -> Plan:
         standalone, inherited = self.followups.resolve(question, history or [])

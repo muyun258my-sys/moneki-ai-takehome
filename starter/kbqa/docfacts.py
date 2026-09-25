@@ -107,7 +107,12 @@ class DocFacts:
         return satisfied
 
     def rank(
-        self, query: str, doc_id: str, limit: int = 3, require_value: bool = False
+        self,
+        query: str,
+        doc_id: str,
+        limit: int = 3,
+        require_value: bool = False,
+        own: Optional[str] = None,
     ) -> list[tuple[float, str]]:
         """在一篇文档里挑最能回答问题的句子。
 
@@ -115,9 +120,17 @@ class DocFacts:
         问“多久”就要带时长的句子，问“哪个商品”就要真的写了商品名的句子。
         一个问题可以同时有几个焦点，满足得越多越靠前。
         `require_value` 为真时只保留至少满足一个焦点的句子；全部文档都挑不出来时由调用方放开。
+        `own` 是追问的原句：还原时从上一轮接过来的话题词只说明“在讲哪件事”，
+        写在标题里就算数；挑哪一句由这一句自己的词决定。
         """
         weights = self.term_weights(query)
         total = sum(weights.values()) or 1.0
+        inherited: set[str] = set()
+        if own is not None:
+            own_terms = set(self.term_weights(own))
+            # 原句自己一个实词都没有（“那以前呢”）时，没有别的依据，照常按全部词挑句。
+            if own_terms:
+                inherited = set(weights) - own_terms
         kinds = focus_kinds(query)
         units = self.units(doc_id)
         if kinds and require_value:
@@ -134,8 +147,8 @@ class DocFacts:
                 if term in direct:
                     hit += weight
                 elif term in unit.context:
-                    # 标题带来的相关性是间接的，算一半。
-                    hit += weight * 0.5
+                    # 标题带来的相关性是间接的，算一半；上一轮的话题词本来就只该由标题承担。
+                    hit += weight if term in inherited else weight * 0.5
             if hit <= 0:
                 continue
             # 同样的覆盖率，短句子是更好的答案；标题与问句本身都不是答案。

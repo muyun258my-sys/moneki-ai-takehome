@@ -203,6 +203,11 @@ class Planner:
         """先判断这是“问数字”还是“问规定”，再细分到具体的取数方式。"""
         text = plan.standalone
         windows = list(spec.windows)
+        if spec.open_ended:
+            # “7 月之后”到现在：库里的数据只到数据末尾，终点截到那里。起点已经过了末尾的不动，
+            # 由 _check_period 如实说没有数据。
+            last = self.data_period["end"]
+            windows = [(start, min(end, last)) if start <= last else (start, end) for start, end in windows]
         if not windows and spec.relative_now and not spec.whole_period:
             # “今天卖了多少”问的就是今天，数据区间之外的话会被 _check_period 拦住。
             windows = [(self.today.isoformat(), self.today.isoformat())]
@@ -308,11 +313,12 @@ class Planner:
         if end < self.data_period["start"] or start > self.data_period["end"]:
             plan.intent = "refusal"
             plan.kind = "out_of_period"
-            plan.refusal = "数据库里只有 %s 至 %s 的销售明细，%s 至 %s 没有任何数据。" % (
+            # “9 月之后”只有起点，没有终点可说。
+            asked = "%s 以后" % start if spec.open_ended else "%s 至 %s" % (start, end)
+            plan.refusal = "数据库里只有 %s 至 %s 的销售明细，%s 没有任何数据。" % (
                 self.data_period["start"],
                 self.data_period["end"],
-                start,
-                end,
+                asked,
             )
 
     def _build_search_query(self, plan: Plan, spec: TimeSpec) -> None:

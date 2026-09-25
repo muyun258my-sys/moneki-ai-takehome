@@ -38,6 +38,11 @@ RELATIVE_FUTURE = {
 }
 #: 紧跟在时间后面、表示“在那之前”的说法。
 _BEFORE = ("之前", "以前")
+#: 紧跟在时间后面、表示“从那往后”的说法：“7 月之后”“8 月 15 日以后”“6 月起”。
+#: 它问的是从那个时间到现在的一段，是过去的事，不是“以后”那种指向未来的说法。
+#: 和“之前”对称，“之后/以后/往后”不含这个时间本身；“起/以来/开始”含。
+_AFTER = re.compile(r"(?:月份?|[日号]|周)(之后|以后|往后|以来|起|开始)")
+_AFTER_EXCLUSIVE = ("之后", "以后", "往后")
 
 
 def squash(text: str) -> str:
@@ -78,6 +83,8 @@ class TimeSpec:
     whole_period: bool = False
     first_month: bool = False
     future: bool = False
+    open_ended: bool = False
+    """“7 月之后”这种只有起点的区间，终点暂记为今天，由上层截到数据末尾。"""
     relative_now: bool = False
     """问的是“今天/现在/目前”。它只决定按哪天判生效，不产生数据区间。"""
     labels: list[str] = field(default_factory=list)
@@ -127,6 +134,10 @@ def parse_time(text: str, today: date) -> TimeSpec:
     windows.extend(ranged)
     if not windows:
         windows.extend(_month_and_day_windows(rest, base_year, today, spec))
+    after = _AFTER.search(cleaned) if windows else None
+    if after:
+        windows = [_open_window(sorted(windows), after.group(1), today)]
+        spec.open_ended = True
 
     windows.extend(_relative_windows(cleaned, today, spec, bool(windows)))
 
@@ -215,10 +226,25 @@ def _ranges(cleaned: str, year: int, spec: TimeSpec) -> tuple[str, list[tuple[st
     return cleaned, windows
 
 
+def _open_window(windows: list[tuple[str, str]], word: str, today: date) -> tuple[str, str]:
+    """“X 之后”“X 起”：从 X 往后到今天。“X 之后到 Y”的终点是 Y。
+
+    起点在今天之后时（“9 月之后”），区间整段落在未来，交给上层按数据区间拒答。
+    """
+    first = windows[0]
+    if word in _AFTER_EXCLUSIVE:
+        start = date.fromisoformat(first[1]) + timedelta(days=1)
+    else:
+        start = date.fromisoformat(first[0])
+    end = date.fromisoformat(windows[-1][1]) if len(windows) > 1 else today
+    return start.isoformat(), max(start, end).isoformat()
+
+
 def _relative_windows(cleaned: str, today: date, spec: TimeSpec, has_windows: bool) -> list[tuple[str, str]]:
     windows: list[tuple[str, str]] = []
     for word, offset in RELATIVE_FUTURE.items():
-        if word in cleaned:
+        # “7 月之后”里的“之后”挂在一个具体时间上，已经解析成过去的区间了。
+        if word in cleaned and not spec.open_ended:
             # 未来的问题落在数据区间之外，交给上层如实拒答。
             start = today + timedelta(days=1)
             windows.append((start.isoformat(), (today + timedelta(days=offset)).isoformat()))

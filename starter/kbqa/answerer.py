@@ -176,9 +176,25 @@ class Answerer(HybridAnswers):
         hits = [
             hit
             for hit in result.ranked
-            if plan.slots.get("about_names") or hit.doc_id != dictionary
+            if (plan.slots.get("about_names") or hit.doc_id != dictionary)
+            and not self._other_year(plan, hit.doc_id)
         ]
         return hits[:limit]
+
+    def _other_year(self, plan: Plan, doc_id: str) -> bool:
+        """问句明说了时间（“去年 618”“2025 年”），标题写着另一年的文档就不是答案。
+
+        检索阶段对它只是降权；到了挑句子，一句“活动价 ¥29”照样能凭字面压过
+        “特价 ¥25”，所以这里直接拿掉。没说时间的问题不受影响。
+        """
+        if not plan.slots.get("time_explicit"):
+            return False
+        title_year = self.retriever.index.docs_meta.get(doc_id, {}).get("title_year")
+        if not title_year:
+            return False
+        asked = {int(window[0][:4]) for window in (plan.window, plan.compare_window) if window}
+        asked |= {int(window[1][:4]) for window in (plan.window, plan.compare_window) if window}
+        return bool(asked) and int(title_year) not in asked
 
     def _search(self, plan: Plan, window=None, trace=None) -> SearchResult:
         started = time.perf_counter()

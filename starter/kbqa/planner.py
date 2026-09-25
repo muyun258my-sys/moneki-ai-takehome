@@ -234,7 +234,7 @@ class Planner:
             or E.has_any(text, E.SALES_RANK_WORDS)
             or (asks_business and plan.slots.get("time_scoped"))
         )
-        compares = len(windows) > 1 and E.has_any(text, E.TREND_WORDS)
+        compares = len(windows) > 1 and E.compares_periods(text)
         if asks_target:
             plan.kind, plan.intent = "target", "hybrid"
         elif asks_price and plan.product_id:
@@ -252,7 +252,7 @@ class Planner:
         elif not may_query:
             plan.kind, plan.intent = "doc", "doc"
 
-        elif len(windows) > 1 and E.has_any(text, E.TREND_WORDS):
+        elif len(windows) > 1 and E.compares_periods(text):
             plan.window, plan.compare_window = windows[0], windows[1]
             plan.kind, plan.intent = "compare", "data"
         elif asks_payment:

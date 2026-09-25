@@ -205,8 +205,11 @@ def test_who_question_not_answered_by_the_entity_it_names(chat):
 def test_two_months_compared(chat, question):
     """两个月份 + 比较的说法（比…多还是少、和…比）：两个月都要查，不能只答其中一个。"""
     result = chat.chat("cmp-" + question, question)
+    # 单段查询的参数是 start/end，两段对比是 start_a/end_a、start_b/end_b，都算。
     windows = {
-        (e["params"].get("start"), e["params"].get("end")) for e in result["data_evidence"]
+        (e["params"].get("start" + suffix), e["params"].get("end" + suffix))
+        for e in result["data_evidence"]
+        for suffix in ("", "_a", "_b")
     }
     assert ("2026-07-01", "2026-07-31") in windows
     assert ("2026-08-01", "2026-08-31") in windows

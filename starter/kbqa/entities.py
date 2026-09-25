@@ -43,7 +43,22 @@ PROMO_WORDS = ("活动", "特价", "促销", "优惠", "折扣", "打折", "618"
 
 def asks_bare_price(text: str) -> bool:
     return bool(_BARE_PRICE.search(text or "")) and not has_any(text, PROMO_WORDS)
+
+
 TREND_WORDS = ("涨", "跌", "变化", "趋势", "环比", "同比", "相比", "对比", "比起", "差了", "差多少", "相差", "高了还是", "低了还是", "多多少", "少多少")
+#: 不带趋势词的比较句式：“8 月比 7 月多还是少”“8 月比 7 月营业额高吗”“和 7 月比怎么样”。
+#: 只在问句里有两个时间时才用得上（见 planner），单独一个“比”不算。
+_COMPARE = re.compile(
+    r"比[^，,。；;？?]{0,16}(多|少|高|低|好|差|强|弱|大|小)"
+    r"|(和|跟|与|同)[^，,。；;？?]{0,12}比"
+    r"|(多|高|好|大)还是(少|低|差|小)|(少|低|差|小)还是(多|高|好|大)"
+)
+
+
+def compares_periods(text: str) -> bool:
+    return has_any(text, TREND_WORDS) or bool(_COMPARE.search(text or ""))
+
+
 DAILY_WORDS = ("每天", "逐日", "按天", "日趋势", "每日")
 #: 问的是“规定怎么写”而不是“数字是多少”：这类问题一律走知识库。
 POLICY_WORDS = (

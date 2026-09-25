@@ -442,3 +442,12 @@
 - **根因**：`starter/kbqa/docfacts.py` 的 `rank` 把问句点名的门店、商品当成答案词；`starter/kbqa/entities.py` 的 `ENTITY_QUESTION` 里的「是谁/谁负责」问的是人，而 entity 焦点只认别名表里的商品和门店。
 - **修复**：本次提交。`rank` 新增 `_subject_terms`：问句点名的门店、商品及门店编号只说明「问的是谁」，出现在标题、上下文里就计满分，和 #40 的上一轮话题词同一套处理。`ENTITY_QUESTION` 去掉「是谁」「谁负责」。
 - **回归测试**：`tests/test_chat.py::test_who_question_not_answered_by_the_entity_it_names`（修复前答的是门店名称）。
+
+## #47 「8 月退款金额比 7 月多还是少」只查了 7 月（L3 数据）
+
+- **现象**：`8 月退款金额比 7 月多还是少`、`8 月比 7 月营业额高吗`、`S01 8 月营业额和 7 月比怎么样` 都只查了 7 月，调的是 `query_metrics`，不是两段对比。
+- **假设**：时间解析已经给出了两个窗口，但 planner 认比较只看 `TREND_WORDS`（涨/跌/相比/对比……），这几种说法里一个都没有。
+- **验证**：`parse_time` 返回 7 月、8 月两个窗口；`_choose_kind` 里的 `compares` 为假，最后落到 summary，只用第一个窗口。
+- **根因**：`starter/kbqa/planner.py` 的 `_choose_kind` 只认趋势词，不认「A 比 B 多/高/好」「和 B 比」「多还是少」这些比较句式。
+- **修复**：本次提交。`entities.compares_periods` = 趋势词 + 句式正则。「比」后 16 字内出现多/少/高/低/好/差……、「和/跟/与/同 … 比」、「多还是少」一类都算。只有问句里有两段时间时才起作用，单独一个「比」不会触发。红测试原来只读 `start/end` 参数，而两段对比的参数是 `start_a/end_a/start_b/end_b`，这次把断言改成两种都认。
+- **回归测试**：`tests/test_chat.py::test_two_months_compared`（修复前 3 例都只查了 7 月）。

@@ -21,6 +21,13 @@ METRIC_WORDS: list[tuple[str, tuple[str, ...]]] = [
 METRIC_FALLBACK: list[tuple[str, tuple[str, ...]]] = [
     ("qty", ("卖了多少", "卖了几", "卖出多少", "卖出几", "卖掉多少")),
 ]
+#: 比较句里“订单多吗”“退款比 7 月少吗”：名词后面（可以隔一个“比…”）跟着多/少，问的就是这个量。
+#: 光一个“订单”“退款”不算指标——“退款怎么处理”问的是规定。
+_THAN = r"(比[^，,。；;？?]{0,12}?)?(更|要|还)?(多|少)(?!久|长)"
+METRIC_COMPARATIVE: list[tuple[str, re.Pattern]] = [
+    ("orders", re.compile(r"(订单|单子)(数|量)?" + _THAN)),
+    ("refund_amount", re.compile(r"退款" + _THAN)),
+]
 
 PAYMENT_WORDS = ("支付方式", "支付占比", "现金", "微信", "支付宝", "会员储值", "储值支付", "银行卡", "刷卡", "扫码")
 RANK_WORDS = ("最高", "最多", "最好", "第一", "top", "排名", "最畅销", "卖得最好", "最低", "最少")
@@ -230,6 +237,9 @@ class Catalog:
 def find_metric(text: str) -> Optional[str]:
     for metric, words in METRIC_WORDS + METRIC_FALLBACK:
         if any(word in text for word in words):
+            return metric
+    for metric, pattern in METRIC_COMPARATIVE:
+        if pattern.search(text):
             return metric
     return None
 

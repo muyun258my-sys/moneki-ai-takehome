@@ -213,3 +213,15 @@ def test_two_months_compared(chat, question):
     }
     assert ("2026-07-01", "2026-07-31") in windows
     assert ("2026-08-01", "2026-08-31") in windows
+
+
+@pytest.mark.parametrize(
+    "question, word",
+    [("S02 7 月比 6 月订单多吗", "订单"), ("8 月退款比 7 月少吗", "退款")],
+)
+def test_metric_named_by_comparative(chat, question, word):
+    """“订单多吗”“退款少吗”点的就是订单数、退款金额，不能按默认的净营业额回答。"""
+    result = chat.chat("cmpm-" + question, question)
+    assert result["data_evidence"][0]["tool"] == "compare_periods"
+    first_line = result["answer"].split("\n")[0]
+    assert word in first_line and "净营业额" not in first_line

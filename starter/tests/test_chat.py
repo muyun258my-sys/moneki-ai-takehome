@@ -144,3 +144,22 @@ def test_follow_up_now_switches_to_current_version(chat, first):
     result = chat.chat(session, "那现在呢")
     assert result["citations"][0]["doc_id"] == "KB-011"
     assert "60" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "question, as_of",
+    [
+        ("7 月之前充值 500 送多少", "2026-06-30"),
+        ("7 月 1 日以前充值 500 送多少", "2026-06-30"),
+    ],
+)
+def test_before_month_means_previous_version(chat, question, as_of):
+    """“7 月之前”问的是 7 月以前生效的那一版，判定时点是 6 月 30 日，不是 7 月底。"""
+    from datetime import date
+
+    from kbqa.timeparse import parse_time
+
+    assert parse_time(question, date(2026, 9, 1)).as_of.isoformat() == as_of
+    result = chat.chat("before-" + question, question)
+    assert result["citations"][0]["doc_id"] == "KB-010"
+    assert "赠送 50 元" in result["answer"]

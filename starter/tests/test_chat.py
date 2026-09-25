@@ -235,3 +235,13 @@ def test_follow_up_two_months_compared(chat):
     assert evidence["tool"] == "compare_periods"
     assert evidence["params"]["store_id"] == "S01"
     assert {evidence["params"]["start_a"], evidence["params"]["start_b"]} == {"2026-06-01", "2026-07-01"}
+
+
+@pytest.mark.parametrize("question", ["6 月和 7 月的营业额分别是多少", "6 月和 7 月的微信支付占比"])
+def test_each_named_month_answered(chat, question):
+    """问句点了两个月又不是在比较：两个月都要答，不能只答第一个。"""
+    result = chat.chat("each-" + question, question)
+    windows = {(e["params"].get("start"), e["params"].get("end")) for e in result["data_evidence"]}
+    assert ("2026-06-01", "2026-06-30") in windows
+    assert ("2026-07-01", "2026-07-31") in windows
+    assert "6 月" in result["answer"] and "7 月" in result["answer"]

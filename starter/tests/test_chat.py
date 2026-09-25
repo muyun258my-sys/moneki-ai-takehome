@@ -344,3 +344,15 @@ def test_after_data_end_is_future(chat, question):
     result = chat.chat("future-" + question, question)
     assert result["answer_type"] == "refusal"
     assert not result["data_evidence"]
+
+
+@pytest.mark.parametrize("follow_up", ["那之后呢？", "这之后呢", "那以后呢"])
+def test_follow_up_after_previous_window(chat, follow_up):
+    """“S01 7 月营业额”之后问“那之后呢”：指上一轮 7 月之后到数据末尾，门店沿用，不是问未来。"""
+    session = "after-follow-" + follow_up
+    chat.chat(session, "S01 7 月营业额")
+    result = chat.chat(session, follow_up)
+    assert result["answer_type"] == "data"
+    params = result["data_evidence"][0]["params"]
+    assert params["store_id"] == "S01"
+    assert (params["start"], params["end"]) == ("2026-08-01", "2026-08-31")

@@ -433,3 +433,12 @@
 - **根因**：`starter/kbqa/planner.py` 的 `_choose_kind` 用来判断问价的词表不认「商品 + 多少钱」。
 - **修复**：本次提交。新增 `entities.asks_bare_price`：只说「多少钱」、前面不是「了」、没提活动/特价/促销时，算问售价。另外还要求没有指标词，而且商品是这一句自己点的。第一版没有「本句点名」这一条，结果追问 `赔了多少钱？` 还原后带上了三文鱼poke，被误判成问价（#39 的测试当场变红），所以补上了。
 - **回归测试**：`tests/test_chat.py::test_bare_how_much_asks_current_price`（修复前 2 例引用 KB-023；`牛肉poke 618 活动多少钱` 作为守门用例，前后都应引用 KB-023）。
+
+## #46 「S01 店长是谁」答成门店名称那一行（L3 文档）
+
+- **现象**：`S01 店长是谁` 引用 KB-030 的「门店名称：Super Souper」，没有答「店长：周岚」。
+- **假设**：planner 把店名拼进检索词，挑句时重复店名的那一行压过了店长那一行。
+- **验证**：检索词是 `S01 店长是谁 S01 Super Souper`；在 KB-030 里「门店名称 | Super Souper」得 0.63，「店长 | 周岚」得 0.51。店名只写在标题里时，按一半计。另外「是谁」被当成 entity 焦点，写着任何商品名、店名的句子（「毛豆」「豚骨拉面」）都乘 1.8。只修前一条，店长行还是排第三。
+- **根因**：`starter/kbqa/docfacts.py` 的 `rank` 把问句点名的门店、商品当成答案词；`starter/kbqa/entities.py` 的 `ENTITY_QUESTION` 里的「是谁/谁负责」问的是人，而 entity 焦点只认别名表里的商品和门店。
+- **修复**：本次提交。`rank` 新增 `_subject_terms`：问句点名的门店、商品及门店编号只说明「问的是谁」，出现在标题、上下文里就计满分，和 #40 的上一轮话题词同一套处理。`ENTITY_QUESTION` 去掉「是谁」「谁负责」。
+- **回归测试**：`tests/test_chat.py::test_who_question_not_answered_by_the_entity_it_names`（修复前答的是门店名称）。

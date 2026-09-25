@@ -122,15 +122,17 @@ class DocFacts:
         `require_value` 为真时只保留至少满足一个焦点的句子；全部文档都挑不出来时由调用方放开。
         `own` 是追问的原句：还原时从上一轮接过来的话题词只说明“在讲哪件事”，
         写在标题里就算数；挑哪一句由这一句自己的词决定。
+        问句点名的门店、商品同理：“S01 店长是谁”里的 S01 只说明是哪家店，
+        门店档案的标题里已经写着它，答案是“店长”那一行，而不是重复店名的那一行。
         """
         weights = self.term_weights(query)
         total = sum(weights.values()) or 1.0
-        inherited: set[str] = set()
+        inherited = self._subject_terms(query) & set(weights)
         if own is not None:
             own_terms = set(self.term_weights(own))
             # 原句自己一个实词都没有（“那以前呢”）时，没有别的依据，照常按全部词挑句。
             if own_terms:
-                inherited = set(weights) - own_terms
+                inherited |= set(weights) - own_terms
         kinds = focus_kinds(query)
         units = self.units(doc_id)
         if kinds and require_value:
@@ -168,6 +170,17 @@ class DocFacts:
             target = self._answer_after_question(units, position)
             picked.append((score, self._with_lead(units, target)))
         return picked
+
+    def _subject_terms(self, query: str) -> set[str]:
+        """问句点名的门店、商品（含门店编号）切出来的词：它们说明“问的是谁”，不是答案本身。"""
+        aliases = self.index.aliases
+        terms: set[str] = set()
+        for canonical in aliases.strict_mentions(query):
+            terms.update(tokenize(canonical))
+            code = aliases.store_code_of.get(canonical)
+            if code:
+                terms.update(tokenize(code))
+        return terms
 
     def extend_to_cause(self, unit: Unit, prefer: Optional[list] = None) -> Unit:
         """问“为什么”时，如果命中的只是一句决议，把写原因的那句一并引上。

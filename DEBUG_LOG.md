@@ -352,3 +352,12 @@
 - **根因**：`starter/kbqa/timeparse.py` 的 `parse_time` / `loose_days`（`text.replace(" ", "")`），以及 `_NUM` 没有左边界。
 - **修复**：本次提交。新增 `_squash`：「字母/数字 + 空格 + 数字」处留一个分隔符；`_NUM` 的阿拉伯数字加上 `(?<![A-Za-z\d])`。
 - **回归测试**：`tests/test_chat.py::test_time_after_code_with_space`（修复前 4 例全红）。
+
+## #37 追问「那 S02 呢」丢掉上一轮的月份（L3 多轮）
+
+- **现象**：先问 `S01 6 月营业额多少`（正确，6 月），再问 `那 S02 呢？`，答的是 S02 全期（05-01 至 08-31）。
+- **假设**：追问还原时，上一轮问句的空格被删掉，月份粘坏了；同时还原句里上一轮和这一轮的门店都在，谁在前取谁。
+- **验证**：还原结果是 `S016月营业额多少 S02`：`S016月` 解析不出月份（同 #36）；`find_store` 只取第一个门店，就算月份正常也会查成 S01。
+- **根因**：`starter/kbqa/followup.py` 的 `resolve`（`re.sub(r"\s+", "", base)`）；`starter/kbqa/planner.py` 的 `plan` 只在还原句里认门店和商品。
+- **修复**：本次提交。`resolve` 改用 `timeparse.squash`；planner 先在本轮原句里认门店和商品，认不到再用还原句（继承上一轮）。
+- **回归测试**：`tests/test_chat.py::test_follow_up_swaps_store_keeps_month`（修复前拿到的是全期）。

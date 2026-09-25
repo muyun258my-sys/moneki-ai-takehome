@@ -114,8 +114,13 @@ class Planner:
         self.followups.inherit_time(plan, spec, question, inherited)
         plan.as_of = spec.as_of or self.today
         plan.year = spec.year
-        store_id, unknown_store = self.catalog.find_store(standalone)
-        product_id, unknown_product = self.catalog.find_product(standalone)
+        # 还原后的追问里同时有上一轮和这一轮的实体（“S01 6 月… S02”），这一句自己点名的优先。
+        store_id, unknown_store = self.catalog.find_store(question)
+        if not (store_id or unknown_store):
+            store_id, unknown_store = self.catalog.find_store(standalone)
+        product_id, unknown_product = self.catalog.find_product(question)
+        if not (product_id or unknown_product):
+            product_id, unknown_product = self.catalog.find_product(standalone)
         plan.store_id = store_id or (inherited.get("store_id") if not unknown_store else None)
         plan.product_id = product_id or (inherited.get("product_id") if not unknown_product else None)
 

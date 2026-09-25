@@ -6,7 +6,7 @@ import re
 from datetime import date
 
 from . import entities as E
-from .timeparse import TimeSpec, loose_days, parse_time
+from .timeparse import TimeSpec, loose_days, parse_time, squash
 
 
 class FollowUps:
@@ -51,7 +51,8 @@ class FollowUps:
         base = previous.get("standalone") or previous.get("question") or ""
         old_spec = parse_time(base, self.today)
         new_spec = parse_time(question, self.today)
-        cleaned = re.sub(r"\s+", "", base)
+        # 与 parse_time 同一套去空白：直接删空格会把“S01 6 月”粘成“S016月”，月份就丢了。
+        cleaned = squash(base)
         if new_spec.windows or new_spec.whole_period:
             for label in old_spec.labels:
                 cleaned = cleaned.replace(label, "")

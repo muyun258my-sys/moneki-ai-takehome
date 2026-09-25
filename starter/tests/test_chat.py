@@ -253,3 +253,18 @@ def test_superlative_metric_routes_to_data(chat, question):
     result = chat.chat("most-" + question, question)
     assert result["answer_type"] == "data"
     assert result["data_evidence"][0]["tool"] == "by_store"
+
+
+@pytest.mark.parametrize(
+    "question, field, lowest",
+    [("哪家店订单最多", "orders", False), ("7 月哪家店退款最少", "refund_amount", True)],
+)
+def test_store_ranking_uses_asked_metric(chat, question, field, lowest):
+    """分店排名要按问的指标排、按问的方向取：问退款最少，就说退款金额最低的那家。"""
+    result = chat.chat("rank-" + question, question)
+    stores = result["data_evidence"][0]["result"]["stores"]
+    pick = (min if lowest else max)(stores, key=lambda store: store[field])
+    head = result["answer"].split("；")[0]
+    assert pick["store_id"] in head
+    assert ("最低" if lowest else "最高") in head
+    assert "净营业额" not in head

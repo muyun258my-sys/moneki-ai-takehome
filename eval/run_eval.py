@@ -376,6 +376,13 @@ class Client:
         try:
             with self.opener.open(req, timeout=self.timeout) as fh:
                 status = fh.status
+                content_length = fh.headers.get("Content-Length")
+                if content_length is not None:
+                    try:
+                        if int(content_length) > MAX_BODY_BYTES:
+                            raise _TooBig()
+                    except ValueError:
+                        pass
                 raw = self._read_capped(fh, started)
         except urllib.error.HTTPError as exc:
             seconds = time.monotonic() - started

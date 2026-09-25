@@ -1656,6 +1656,19 @@ def _is_timeout(exc: BaseException) -> bool:
     return False
 
 
+def _endpoint_reachable(url: str, timeout: float) -> bool:
+    """连接阶段超时时，确认目标端口是否确实接受 TCP 连接。"""
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        with socket.create_connection((parsed.hostname, port), timeout=min(timeout, 0.25)):
+            return True
+    except OSError:
+        return False
+
+
 @dataclass
 class HttpResult:
     url: str
@@ -1711,6 +1724,9 @@ def http_json(
         body, text = parse_json_bytes(raw)
         return HttpResult(url, int(exc.code), body, text, time.monotonic() - started, None)
     except Exception as exc:
+        timed_out = _is_timeout(exc)
+        if timed_out and not _endpoint_reachable(url, timeout):
+            timed_out = False
         return HttpResult(
             url,
             None,
@@ -1718,7 +1734,7 @@ def http_json(
             "",
             time.monotonic() - started,
             "%s: %s" % (type(exc).__name__, exc),
-            timed_out=_is_timeout(exc),
+            timed_out=timed_out,
         )
 
 

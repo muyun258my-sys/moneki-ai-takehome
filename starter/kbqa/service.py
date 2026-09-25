@@ -11,13 +11,14 @@ from .schemas import Answer
 from .cleaning import build_clean_db
 from .docfacts import DocFacts
 from .config import Settings, load_settings
-from .entities import Catalog
+from .entities import Catalog, wants_historical
 from .index import load_index
 from .live import LiveEngine
 from .llm import LLMClient, LLMError
 from .planner import Planner
 from .retriever import Retriever
 from .sessions import SessionStore
+from .timeparse import parse_time
 from .toolspec import TOOL_NAMES, TOOLS
 from .tools import DataTools
 from .trace import Trace, TraceStore
@@ -89,7 +90,21 @@ class Service:
         `top_k` 大于索引里的片段总数时按总数封顶——这正是契约允许少给的那种情况。
         """
         wanted = max(1, min(int(top_k or 5), len(self.index.chunks) or 1))
-        result = self.retriever.search(query or "", top_k=wanted)
+        text = query or ""
+        # 与问答链路用同一套参数：年份、时间点、门店、是否点名旧版。
+        spec = parse_time(text, self.settings.today)
+        store_id, _ = self.catalog.find_store(text)
+        dated = bool(spec.windows) and spec.as_of is not None and spec.as_of < self.settings.today
+        historical = wants_historical(text) and not dated
+        result = self.retriever.search(
+            text,
+            top_k=wanted,
+            as_of=spec.as_of,
+            store_id=store_id,
+            year=spec.year,
+            window=spec.window,
+            historical=historical,
+        )
         return {"results": [hit.as_result() for hit in result.hits]}
 
     # -- 工具执行（live 模式下由模型驱动） ---------------------------------------

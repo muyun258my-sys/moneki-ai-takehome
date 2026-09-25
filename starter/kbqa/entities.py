@@ -68,8 +68,11 @@ NAME_WORDS = ("别名", "叫法", "叫什么", "又叫", "是不是一个", "同
 #: 问的是“过去那一版”的规定：这时必须把已废止的文档放回检索范围。
 HISTORICAL_WORDS = (
     "旧口径", "老口径", "旧版", "老版", "上一版", "以前", "过去", "原来", "从前", "早先",
-    "之前的规定", "之前怎么", "当时的规定", "当时怎么", "废止", "作废", "被取代", "老政策", "旧政策",
+    "之前", "当时", "废止", "作废", "被取代", "老政策", "旧政策",
 )
+
+#: 显式点名某一版/某一份文档：`v1`、`KB-010`。问这些就是要取回那一版，不受“已废止”过滤。
+_HISTORICAL_REF = re.compile(r"(?<![a-z0-9])(?:v\d+|kb-\d{3})(?![0-9])", re.I)
 
 #: 期望的答案类型，用来在一篇文档里挑对句子（跨语言时几乎是唯一可用的线索）。
 MONEY_QUESTION = ("多少钱", "金额", "赔", "赔付", "费用", "价格", "多少元", "花了多少", "收多少", "活动价", "售价")
@@ -152,7 +155,7 @@ class Catalog:
     def find_store(self, text: str) -> tuple[Optional[str], Optional[str]]:
         """返回 (store_id, 未知门店编号)。问到不存在的门店时第二项非空。"""
         lowered = normalise(text)
-        for code in re.findall(r"\bs\d{1,2}\b", lowered):
+        for code in re.findall(r"(?<![a-z0-9])s\d{1,2}(?![0-9])", lowered):
             upper = code.upper()
             if upper in self.store_ids():
                 return upper, None
@@ -173,7 +176,7 @@ class Catalog:
 
     def find_product(self, text: str) -> tuple[Optional[str], Optional[str]]:
         lowered = normalise(text)
-        for code in re.findall(r"\bp\d{1,2}\b", lowered):
+        for code in re.findall(r"(?<![a-z0-9])p\d{1,2}(?![0-9])", lowered):
             upper = code.upper()
             if upper in {product["product_id"] for product in self.products}:
                 return upper, None
@@ -273,7 +276,9 @@ def expected_value_kind(text: str) -> Optional[str]:
 
 def wants_historical(text: str) -> bool:
     """问的是“以前那一版”吗。"""
-    return has_any(text, HISTORICAL_WORDS)
+    if has_any(text, HISTORICAL_WORDS):
+        return True
+    return bool(_HISTORICAL_REF.search(normalise(text)))
 
 
 def is_abnormal(text: str) -> bool:

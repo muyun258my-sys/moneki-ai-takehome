@@ -195,7 +195,7 @@ class Retriever:
         import re
 
         found = []
-        for code in re.findall(r"\bs\d{2}\b", query.lower()):
+        for code in re.findall(r"(?<![a-z0-9])s\d{2}(?![0-9])", query.lower()):
             canonical = self.index.aliases.by_store_code(code)
             if canonical:
                 found.append(canonical)

@@ -12,9 +12,9 @@ from typing import Optional
 SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".html", ".htm"}
 
 #: 文件名开头的编号就是 doc_id，与文件格式无关（契约 §0）。
-_DOC_ID = re.compile(r"^(KB-\d+)")
+_DOC_ID = re.compile(r"^(KB-\d+)", re.I)
 _FRONT_MATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.S)
-_STORE_CODE = re.compile(r"\bS\d{2}\b")
+_STORE_CODE = re.compile(r"(?<![A-Za-z0-9])S\d{2}(?![0-9])")
 
 #: 正文里的生效日期：优先“自 2026 年 8 月 15 日起”“生效日期：2026-07-01”这类明确写法。
 _CN_DATE = r"(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2})\s*日?"
@@ -77,13 +77,13 @@ class Document:
 
 
 _HTML_TITLE = re.compile(r"<title>(.*?)</title>", re.S | re.I)
-_SCRIPT_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
+_STRIP_BLOCKS = re.compile(r"<(script|style|nav|header|footer)\b.*?</\1>", re.S | re.I)
 _TAG = re.compile(r"<[^>]+>")
 
 
 def decode_bytes(raw: bytes, path: Path, warnings: list[str]) -> str:
     """先按 UTF-8，失败再按 GB18030（KB-062 是旧 OA 导出的 GBK 文件）。"""
-    for encoding in ("utf-8", "gb18030"):
+    for encoding in ("utf-8-sig", "gb18030"):
         try:
             return raw.decode(encoding)
         except UnicodeDecodeError:
@@ -93,8 +93,8 @@ def decode_bytes(raw: bytes, path: Path, warnings: list[str]) -> str:
 
 
 def html_to_text(text: str) -> str:
-    """剥掉 script/style 和所有标签，只留可见正文（与评测端逐字校验一致）。"""
-    text = _SCRIPT_STYLE.sub(" ", text)
+    """剥掉 script/style/导航/页头页脚和所有标签，只留正文可见文本。"""
+    text = _STRIP_BLOCKS.sub(" ", text)
     text = _TAG.sub(" ", text)
     return html_module.unescape(text)
 
@@ -165,17 +165,19 @@ def _effective_from_body(text: str) -> Optional[date]:
 
 
 def _title_from_body(text: str, fallback: str) -> str:
-    for line in text.splitlines():
-        stripped = line.strip().lstrip("#").strip()
-        if not stripped or set(stripped) <= set("=-*_ "):
+    lines = [line.strip().lstrip("#").strip() for line in text.splitlines()]
+    # 显式标题标记优先：OA 导出、邮件 Subject 都可能在正文中段才出现。
+    for line in lines:
+        if line.startswith("标题：") or line.startswith("标题:"):
+            return line.split("：", 1)[-1].split(":", 1)[-1].strip()
+        if line.startswith("Subject:"):
+            return line.split(":", 1)[1].strip()
+    for line in lines:
+        if not line or set(line) <= set("=-*_ "):
             continue
-        if stripped.startswith(("From:", "To:", "Cc:", "Date:")):
+        if line.startswith(("From:", "To:", "Cc:", "Date:")):
             continue
-        if stripped.startswith("Subject:"):
-            return stripped.split(":", 1)[1].strip()
-        if stripped.startswith("标题：") or stripped.startswith("标题:"):
-            return stripped.split("：", 1)[-1].split(":", 1)[-1].strip()
-        return stripped[:80]
+        return line[:80]
     return fallback
 
 
@@ -197,7 +199,7 @@ def load_document(path: Path) -> Optional[Document]:
         text = html_to_text(text)
 
     match = _DOC_ID.match(path.name)
-    doc_id = str(meta.get("doc_id") or (match.group(1) if match else "")).strip()
+    doc_id = (match.group(1) if match else "").strip().upper()
     if not doc_id:
         return None
 

@@ -211,3 +211,59 @@
 - **根因**：`starter/kbqa/service.py` 的 `Service.health`。
 - **修复**：本次提交。
 - **回归测试**：`tests/test_api.py::test_health_ok`（断言 `kb_docs == 35`）。
+
+---
+
+## #22 编号紧跟中文时识别不到（`\b` 对中文不成立）
+
+- **现象**：`S04为什么不卖吞拿鱼三明治了`、`S01的7月净营业额` 里门店编号识别不出来；`P06六月` 同理。Python 里中文字符也算单词字符，`\b` 后面没有边界。
+- **假设**：把 `\b` 换成精确的 lookaround：前面不能是字母数字、后面不能是数字。
+- **验证**：改成 `(?<![a-z0-9])s\d{2}(?![0-9])` 后，`S04为什么`/`S01的`/`P06六月` 都能识别，`S012`/`P061` 不再误匹配。
+- **根因**：`loader.py` `_STORE_CODE`、`retriever.py` `_store_concepts`、`entities.py` `find_store`/`find_product`、`aliases.py` `expansions`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_store_code_followed_by_chinese`。
+
+## #23 带 UTF-8 BOM 的文件元数据失效
+
+- **现象**：带 BOM 且标了 `status: 已废止` 的文件，标题变成 `\ufeff---`、状态退回默认「现行」。
+- **假设**：`decode_bytes` 用了 `utf-8`，BOM 保留在开头，front matter 解析失效。
+- **验证**：改用 `utf-8-sig` 后，BOM 被剥掉，`title`/`status` 正确解析。
+- **根因**：`loader.py` 的 `decode_bytes`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_decode_bom`。
+
+## #24 显式点名旧版时旧版取不回来
+
+- **现象**：`储值政策 v1`、`KB-010 写了什么`、`指标口径手册 v2`、`之前的储值政策` 这些问法里旧版文档被过滤掉。
+- **假设**：`wants_historical` 只认「以前/旧版」等词，不认 `v1/v2`、`KB-0xx`、`之前`。
+- **验证**：加入 `v\d+`、`kb-\d{3}` 正则与「之前/当时」后，四类问法都取回旧版（KB-010/KB-002）。
+- **根因**：`entities.py` 的 `HISTORICAL_WORDS` 与 `wants_historical`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_wants_historical_version_refs`。
+
+## #25 /api/retrieve 与问答链路参数不一致
+
+- **现象**：`2025年618` 走 `/api/retrieve` 时 2026 版 KB-023 排第一；问答链路按年份解析给出 KB-024。契约 §4 要求同一套实现。
+- **假设**：`/api/retrieve` 没解析年份/时间点/门店，`search` 少了参数。
+- **验证**：在 `service.retrieve` 里用 `parse_time` + `find_store` + `wants_historical` 解析并传入后，两边结果一致。
+- **根因**：`service.py` 的 `retrieve`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_retriever_year_and_as_of`。
+
+## #26 文件名小写 / 文件头 doc_id 覆盖文件名
+
+- **现象**：文件名是 `kb-xxx` 会被直接跳过；front matter 里的 `doc_id` 会覆盖文件名编号，而契约规定 doc_id 以文件名为准。
+- **假设**：`_DOC_ID` 要忽略大小写，doc_id 只取文件名（转大写），不读 front matter。
+- **验证**：`kb-013_...` 得到 `KB-013`；`KB-010_...` 配 `doc_id: KB-999` 仍得到 `KB-010`。
+- **根因**：`loader.py` 的 `_DOC_ID` 与 `load_document`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_doc_id_from_filename_not_frontmatter`。
+
+## #27 KB-062 标题、KB-061 导航栏文字
+
+- **现象**：KB-062 标题认成 OA 页眉「合味餐饮管理…导出文件」；KB-061 正文里留着「首页/门店/菜单」导航。
+- **假设**：标题应优先认「标题：」标记；HTML 应剥掉 nav/header/footer。
+- **验证**：改后 KB-062 标题为「关于 Super Souper 门店营业时间调整的通知」，KB-061 不再含「首页/菜单」。
+- **根因**：`loader.py` 的 `_title_from_body` 与 `html_to_text`。
+- **修复**：本次提交。
+- **回归测试**：`tests/test_retrieval.py::test_kb062_title_and_kb061_nav`。

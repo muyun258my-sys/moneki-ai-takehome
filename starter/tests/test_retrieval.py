@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from kbqa.chunker import chunk_document
+from kbqa.entities import Catalog, wants_historical
 from kbqa.index import build_index
 from kbqa.loader import Document, decode_bytes, load_knowledge_base
 from kbqa.retriever import Retriever
+from kbqa.timeparse import parse_time
 from kbqa.tokenizer import tokenize
 
 KB_DIR = Path(__file__).resolve().parents[2] / "knowledge_base"
@@ -85,3 +87,70 @@ def test_retrieval_gold(retriever, query, gold):
     got = [hit.doc_id for hit in result.hits]
     assert len(got) == 5
     assert any(g in got for g in gold), "%s 应命中 %s，实际 %s" % (query, gold, got)
+
+
+def test_store_code_followed_by_chinese():
+    catalog = Catalog(
+        stores=[{"store_id": "S01", "store_name": "Super Souper", "category": "拉面", "district": "x"}],
+        products=[{"product_id": "P06", "product_name": "牛肉poke", "product_category": "主食", "unit_price": 42.0}],
+    )
+    assert catalog.find_store("S01的7月净营业额") == ("S01", None)
+    assert catalog.find_product("P06六月卖了多少钱") == ("P06", None)
+    # 编号后面紧跟数字不应误匹配（S012 不是 S01）
+    assert catalog.find_store("S012") == (None, None)
+
+
+def test_wants_historical_version_refs():
+    assert wants_historical("储值政策 v1 充 500 送多少")
+    assert wants_historical("KB-010 写了什么")
+    assert wants_historical("指标口径手册 v2")
+    assert wants_historical("之前的储值政策")
+    assert not wants_historical("现在充 500 送多少")
+
+
+def test_decode_bom():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "KB-999_测试.md"
+        content = "---\ndoc_id: KB-999\ntitle: 测试\nstatus: 已废止\n---\n正文"
+        path.write_bytes(b"\xef\xbb\xbf" + content.encode("utf-8"))
+        text = decode_bytes(path.read_bytes(), path, [])
+        assert "\ufeff" not in text
+        assert text.startswith("---")
+
+
+def test_doc_id_from_filename_not_frontmatter():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "kb-010_会员储值政策_v1.md"
+        path.write_text("---\ndoc_id: KB-999\ntitle: 篡改\n---\n正文", encoding="utf-8")
+        from kbqa.loader import load_document
+
+        doc = load_document(path)
+        assert doc.doc_id == "KB-010"
+
+
+def test_kb062_title_and_kb061_nav():
+    docs, _ = load_knowledge_base(KB_DIR)
+    d62 = next(d for d in docs if d.doc_id == "KB-062")
+    d61 = next(d for d in docs if d.doc_id == "KB-061")
+    assert "营业时间调整" in d62.title
+    assert "首页" not in d61.text
+    assert "菜单" not in d61.text
+    assert "小程序" in d61.text
+
+
+def test_retriever_year_and_as_of():
+    from datetime import date
+
+    retriever = Retriever(build_index(KB_DIR), date(2026, 9, 1))
+    # 2025 年应优先 2025 版 618
+    spec = parse_time("2025年618牛肉poke活动价", date(2026, 9, 1))
+    assert spec.year == 2025
+    r = retriever.search("2025年618牛肉poke活动价", top_k=5, year=spec.year, as_of=spec.as_of, window=spec.window)
+    assert r.hits[0].doc_id == "KB-024"
+    # 6 月（KB-011 尚未生效）应命中 v1 储值
+    r = retriever.search("充值500送多少", top_k=5, as_of=date(2026, 6, 15))
+    assert any(h.doc_id == "KB-010" for h in r.hits)

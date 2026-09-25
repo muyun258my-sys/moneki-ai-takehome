@@ -113,3 +113,14 @@ def test_follow_up_without_marker(chat, follow_up, text):
     assert result["answer_type"] in ("doc", "hybrid")
     assert result["citations"]
     assert text in result["answer"]
+
+
+@pytest.mark.parametrize("follow_up", ["用什么替代？", "后来用什么替代？"])
+def test_follow_up_cites_the_notice(chat, follow_up):
+    """追问里上一轮的话题词只说明“在讲哪件事”，挑句子要看这一句自己问的是什么：
+    替代品写在停售通知 KB-021 里，顾客反馈汇总只是转述。"""
+    session = "notice-" + follow_up
+    chat.chat(session, "三文鱼poke 为什么停售？")
+    result = chat.chat(session, follow_up)
+    assert result["citations"][0]["doc_id"] == "KB-021"
+    assert "鸡肉poke" in result["answer"]

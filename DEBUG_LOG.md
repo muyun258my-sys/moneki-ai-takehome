@@ -406,3 +406,12 @@
 - **根因**：`starter/kbqa/followup.py` 的 `resolve` 只在追问自带时间区间时才去掉上一轮的时间标签。「现在」不产生区间（`relative_now`），走不到那条分支。
 - **修复**：本次提交。追问是 `relative_now` 时，去掉上一轮的时间标签和 `HISTORICAL_WORDS`，只保留话题。
 - **回归测试**：`tests/test_chat.py::test_follow_up_now_switches_to_current_version`（修复前 2 例引用的都是 KB-010）。
+
+## #43 「7 月之前充值 500 送多少」按 7 月的新版回答（L3 版本）
+
+- **现象**：`7 月之前充值 500 送多少` 引用 KB-011（60 元）。7 月之前生效的是 KB-010（50 元）。
+- **假设**：「之前」没有进入时间解析，判定时点按「7 月」取了月底。
+- **验证**：`parse_time` 返回的 windows 是 7 月整月，as_of 是 2026-07-31；`7 月 1 日以前` 的 as_of 是 07-01，同样落在 KB-011 的生效日上。
+- **根因**：`starter/kbqa/timeparse.py` 的 `_as_of` 一律取区间末尾，没有处理「X 之前/以前」。
+- **修复**：本次提交。时间标签后面紧跟 `之前/以前` 时，as_of 取区间开始的前一天（不超过今天）。数据区间不变，只影响按哪天判生效版本。
+- **回归测试**：`tests/test_chat.py::test_before_month_means_previous_version`（修复前 2 例的 as_of 分别是 07-31、07-01）。

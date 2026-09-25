@@ -36,6 +36,8 @@ RELATIVE_FUTURE = {
     "明天": 1, "后天": 2, "下周": 7, "下个星期": 7, "下星期": 7, "未来": 7,
     "接下来": 7, "下个月": 30, "下月": 30, "明年": 365, "以后": 30, "之后": 7,
 }
+#: 紧跟在时间后面、表示“在那之前”的说法。
+_BEFORE = ("之前", "以前")
 
 
 def squash(text: str) -> str:
@@ -145,6 +147,9 @@ def parse_time(text: str, today: date) -> TimeSpec:
         spec.year = int(unique[0][0][:4]) if unique else today.year
     spec.explicit = bool(unique) or spec.whole_period or spec.first_month
     spec.as_of = _as_of(spec, today)
+    if unique and any(label + word in cleaned for label in spec.labels for word in _BEFORE):
+        # “7 月之前”问的是 7 月以前那一版：判定时点是区间开始的前一天，不是区间末尾。
+        spec.as_of = min(date.fromisoformat(unique[0][0]) - timedelta(days=1), today)
     return spec
 
 

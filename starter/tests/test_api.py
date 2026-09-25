@@ -11,6 +11,7 @@ def test_health_ok(client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["llm_mode"] == "mock"
+    assert body["kb_docs"] == 35
 
 
 def test_health_cleaning_report(client):

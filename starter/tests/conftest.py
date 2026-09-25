@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 FAKE_TEXT = "退款政策 v2 > 三、时限：外卖订单在订单送达后 24 小时内可以申请退款。"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def client(tmp_path_factory):
     os.environ["VAR_DIR"] = str(tmp_path_factory.mktemp("var"))
     for key in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
@@ -47,5 +47,9 @@ def client(tmp_path_factory):
             coverage=1.0,
         )
 
+    original_search = retriever_module.Retriever.search
     retriever_module.Retriever.search = fake_search
-    return TestClient(server.app)
+    try:
+        yield TestClient(server.app)
+    finally:
+        retriever_module.Retriever.search = original_search

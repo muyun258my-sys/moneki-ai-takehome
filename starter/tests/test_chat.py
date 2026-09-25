@@ -301,3 +301,18 @@ def test_peak_day(chat, question, field, lowest):
     days = evidence["result"]["days"]
     pick = (min if lowest else max)(days, key=lambda day: day[field])
     assert pick["date"] in result["answer"].split("；")[0]
+
+
+@pytest.mark.parametrize("question", ["店长们的手机号是多少？", "S02 店长手机号多少"])
+def test_missing_phone_number_refused(chat, question):
+    """问的是手机号，知识库里只有座机：找不到号码就拒答，不能拿一句提到“手机”的话充数。"""
+    result = chat.chat("mobile-" + question, question)
+    assert result["answer_type"] == "refusal"
+    assert not result["citations"]
+
+
+def test_landline_still_answered(chat):
+    """守门：问门店电话，门店档案里写着座机，照常回答。"""
+    result = chat.chat("landline", "S01 的联系电话是多少")
+    assert result["answer_type"] == "doc"
+    assert "021-5555-0101" in result["answer"]

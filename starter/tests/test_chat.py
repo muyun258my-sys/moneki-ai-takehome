@@ -196,3 +196,17 @@ def test_who_question_not_answered_by_the_entity_it_names(chat):
     result = chat.chat("who-s01", "S01 店长是谁")
     assert result["citations"][0]["doc_id"] == "KB-030"
     assert "周岚" in result["answer"]
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["8 月退款金额比 7 月多还是少", "8 月比 7 月营业额高吗", "S01 8 月营业额和 7 月比怎么样"],
+)
+def test_two_months_compared(chat, question):
+    """两个月份 + 比较的说法（比…多还是少、和…比）：两个月都要查，不能只答其中一个。"""
+    result = chat.chat("cmp-" + question, question)
+    windows = {
+        (e["params"].get("start"), e["params"].get("end")) for e in result["data_evidence"]
+    }
+    assert ("2026-07-01", "2026-07-31") in windows
+    assert ("2026-08-01", "2026-08-31") in windows

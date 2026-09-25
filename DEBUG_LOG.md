@@ -361,3 +361,12 @@
 - **根因**：`starter/kbqa/followup.py` 的 `resolve`（`re.sub(r"\s+", "", base)`）；`starter/kbqa/planner.py` 的 `plan` 只在还原句里认门店和商品。
 - **修复**：本次提交。`resolve` 改用 `timeparse.squash`；planner 先在本轮原句里认门店和商品，认不到再用还原句（继承上一轮）。
 - **回归测试**：`tests/test_chat.py::test_follow_up_swaps_store_keeps_month`（修复前拿到的是全期）。
+
+## #38 「多少订单」「卖了多少」被当成文档问题（L3）
+
+- **现象**：`6 月份一共有多少订单` 走文档后拒答；`牛肉poke 6 月卖了多少` 走文档，拿周报里的「大概 150 份」作答（数据库是 545 份），违反 KB-001 §5.2「数字以数据库为准」。
+- **假设**：指标词表只有书面说法（订单数、销量、卖了多少份），口语说法认不出指标，路由就退回文档。
+- **验证**：`find_metric` 对这两句都返回 None；在句中换成 `订单数` / `销量` 后走数据、结果正确。
+- **根因**：`starter/kbqa/entities.py` 的 `METRIC_WORDS` 缺少「多少订单」「几单」和不带单位的「卖了多少」。
+- **修复**：本次提交。orders 增加「几单」「多少订单」「多少个订单」「几个订单」；新增 `METRIC_FALLBACK`，把「卖了多少」「卖出多少」等归到销量，排在主表之后，「卖了多少钱」仍归营业额。没有加单独的「订单」，否则「外卖订单多久内可以退款」会被误判成问数。
+- **回归测试**：`tests/test_chat.py::test_colloquial_metric_routes_to_data`（修复前 2 例全红）。

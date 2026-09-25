@@ -13,9 +13,13 @@ from .tokenizer import normalise
 METRIC_WORDS: list[tuple[str, tuple[str, ...]]] = [
     ("refund_amount", ("退款金额", "退了多少钱", "退款额", "退款总额", "退款多少")),
     ("aov", ("客单价", "平均每单", "单均", "人均消费")),
-    ("orders", ("订单数", "多少单", "单量", "订单量", "成交单数", "有效订单")),
+    ("orders", ("订单数", "多少单", "几单", "多少订单", "多少个订单", "几个订单", "单量", "订单量", "成交单数", "有效订单")),
     ("qty", ("销量", "卖了多少份", "多少份", "多少杯", "多少碗", "多少件", "卖出", "售出", "销售数量")),
     ("net_revenue", ("净营业额", "营业额", "销售额", "营收", "收入", "流水", "卖了多少钱", "业绩", "GMV")),
+]
+#: 没说单位的“卖了多少”问的是销量。放在主表之后兜底，免得抢走“卖了多少钱”。
+METRIC_FALLBACK: list[tuple[str, tuple[str, ...]]] = [
+    ("qty", ("卖了多少", "卖了几", "卖出多少", "卖出几", "卖掉多少")),
 ]
 
 PAYMENT_WORDS = ("支付方式", "支付占比", "现金", "微信", "支付宝", "会员储值", "储值支付", "银行卡", "刷卡", "扫码")
@@ -198,7 +202,7 @@ class Catalog:
 
 
 def find_metric(text: str) -> Optional[str]:
-    for metric, words in METRIC_WORDS:
+    for metric, words in METRIC_WORDS + METRIC_FALLBACK:
         if any(word in text for word in words):
             return metric
     return None

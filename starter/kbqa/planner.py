@@ -215,7 +215,13 @@ class Planner:
         asks_payment = E.has_any(text, E.PAYMENT_WORDS)
         asks_why = E.has_any(text, E.WHY_WORDS)
         asks_target = E.has_any(text, E.TARGET_WORDS)
-        asks_price = E.has_any(text, E.PRICE_WORDS)
+        # 只说“多少钱”时，商品必须是这一句自己点的：追问还原接过来的商品不算，
+        # 否则“赔了多少钱 + 三文鱼poke”也会被当成问售价。
+        asks_price = E.has_any(text, E.PRICE_WORDS) or (
+            not explicit_metric
+            and E.asks_bare_price(plan.question)
+            and bool(self.catalog.find_product(plan.question)[0])
+        )
         asks_amount = E.has_any(text, ("多少", "几", "是多少", "有多少")) or asks_rank
 
         asks_business = E.has_any(text, E.BUSINESS_WORDS)

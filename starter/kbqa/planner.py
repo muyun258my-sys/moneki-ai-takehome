@@ -348,22 +348,22 @@ class Planner:
             candidates.append({"target": target, "score": score, "reason": reason})
 
         if E.has_any(text, E.WHICH_DAY_WORDS) and windows[0][0] != windows[0][1]:
-            add("day", 130, "问题明确询问哪一天")
+            add("day", 180, "问题明确询问哪一天")
         if len(windows) > 1 and E.has_any(text, E.MONTHLY_WORDS):
-            add("month", 125, "问题明确询问月份拆分")
+            add("month", 175, "问题明确询问月份拆分")
         explicit_product_target = E.has_any(text, E.PRODUCT_RANK_WORDS) or E.has_any(
             text, E.SALES_RANK_WORDS
         )
         explicit_category_target = E.has_any(text, E.CATEGORY_WORDS)
         explicit_store_target = not plan.store_id and E.has_any(text, E.STORE_WORDS)
         if asks_rank_extremes and not explicit_product_target and not explicit_category_target:
-            add("store_extremes", 140, "同时出现最高与最低，默认比较门店两端")
+            add("store_extremes", 160, "同时出现最高与最低，默认比较门店两端")
         if explicit_category_target:
-            add("category", 135, "出现品类范围词")
+            add("category", 170, "出现品类范围词")
         if explicit_product_target:
-            add("product", 130, "出现商品或卖得好坏词")
+            add("product", 170, "出现商品或卖得好坏词")
         if explicit_store_target:
-            add("store", 125, "出现门店范围词")
+            add("store", 155, "出现门店范围词")
         if asks_rank and not candidates:
             add("product", 50, "未指明对象，沿用商品排行默认值")
         return sorted(candidates, key=lambda item: item["score"], reverse=True)

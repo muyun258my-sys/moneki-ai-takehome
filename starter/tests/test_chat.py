@@ -279,6 +279,13 @@ def test_store_extremes_answer_both_ends(chat):
     assert "P06" not in result["answer"]
 
 
+def test_explicit_month_target_beats_extreme_default(chat):
+    """明确问哪个月时，月份目标优先于“最高和最低”的门店默认值。"""
+    result = chat.chat("month-extremes", "哪个月营业额最高和最低")
+    assert result["data_evidence"][0]["tool"] == "query_metrics"
+    assert "各月净营业额" in result["answer"]
+
+
 @pytest.mark.parametrize(
     "question, field, months",
     [

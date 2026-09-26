@@ -24,12 +24,17 @@ function showError(error) {
 function hideError() { $("error-notice").hidden = true; }
 
 function setDefaults(period) {
-  const end = period?.end || "2026-08-31";
-  const start = period?.start || "2026-08-01";
+  if (!period?.start || !period?.end) {
+    $("start-date").value = ""; $("end-date").value = "";
+    $("store-select").value = ""; $("period-label").textContent = "数据范围不可用";
+    return;
+  }
+  const end = period.end;
+  const start = period.start;
   $("start-date").value = start.slice(0, 8) + "01";
   $("end-date").value = end;
   $("store-select").value = "";
-  $("period-label").textContent = `数据范围 ${period?.start || start} — ${period?.end || end}`;
+  $("period-label").textContent = `数据范围 ${start} — ${end}`;
 }
 
 async function loadMeta() {

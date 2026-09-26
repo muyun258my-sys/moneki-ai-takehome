@@ -16,7 +16,7 @@ SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".html", ".htm"}
 #: 文件名开头的编号就是 doc_id，与文件格式无关（契约 §0）。
 _DOC_ID = re.compile(r"^(KB-\d+)", re.I)
 _FRONT_MATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.S)
-_STORE_CODE = re.compile(r"(?<![A-Za-z0-9])S\d{2}(?![0-9])")
+_STORE_CODE = re.compile(r"(?<![A-Za-z0-9])S\d+(?![0-9])", re.I)
 
 #: 正文里的生效日期：优先“自 2026 年 8 月 15 日起”“生效日期：2026-07-01”这类明确写法。
 _CN_DATE = r"(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2})\s*日?"

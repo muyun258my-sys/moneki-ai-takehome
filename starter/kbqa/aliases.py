@@ -10,7 +10,6 @@ from .loader import Document
 from .tokenizer import normalise
 
 _SPLIT = re.compile(r"[、,，/;；]|\s{2,}")
-_STORE_CODE = re.compile(r"^S\d{2}$", re.I)
 _TABLE_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
 _TABLE_SEP = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
@@ -154,10 +153,11 @@ class AliasTable:
         extra: list[str] = []
         lowered = normalise(text)
         mentioned = list(self.mentions(text))
-        for code in re.findall(r"(?<![a-z0-9])s\d{2}(?![0-9])", lowered):
-            canonical = self.by_store_code(code)
-            if canonical and canonical not in mentioned:
-                mentioned.append(canonical)
+        for code in self.store_code_of.values():
+            if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(normalise(code)), lowered):
+                canonical = self.by_store_code(code)
+                if canonical and canonical not in mentioned:
+                    mentioned.append(canonical)
         for canonical in mentioned:
             for variant in self.variants(canonical):
                 if normalise(variant) not in lowered:
@@ -210,6 +210,11 @@ def build_alias_table(documents: list[Document]) -> AliasTable:
             if not alias_columns:
                 continue
             table.source_doc = document.doc_id
+            store_code_columns = [
+                position
+                for position, cell in enumerate(lowered)
+                if "门店编号" in cell or "store id" in cell or cell in {"store_id", "store code"}
+            ]
             for row in rows:
                 if not row or not row[0]:
                     continue
@@ -218,9 +223,9 @@ def build_alias_table(documents: list[Document]) -> AliasTable:
                 for column in alias_columns:
                     if column < len(row):
                         names.extend(_split_aliases(row[column]))
-                for cell in row[1:]:
-                    if _STORE_CODE.match(cell.strip()):
-                        table.store_code_of[canonical] = cell.strip().upper()
+                for column in store_code_columns:
+                    if column < len(row) and row[column].strip():
+                        table.store_code_of[canonical] = row[column].strip().upper()
                 unique: list[str] = []
                 for name in names:
                     if name and name not in unique:

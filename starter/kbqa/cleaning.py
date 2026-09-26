@@ -30,7 +30,7 @@ def parse_amount(value: Optional[str]) -> tuple[Optional[int], str]:
     KB-001 §2.3 与 §3.2：`¥38.00` 与 `38.00` 是同一个金额；空金额直接剔除，**不回填**。
     `Infinity` / `NaN` 等非有限值按 `bad` 处理，不参与统计。
     """
-    text = (value or "").translate(_CURRENCY)
+    text = ("" if value is None else str(value)).translate(_CURRENCY)
     if not text:
         return None, "empty"
     try:
@@ -46,7 +46,7 @@ def parse_amount(value: Optional[str]) -> tuple[Optional[int], str]:
 def parse_qty(value: Optional[str]) -> Optional[int]:
     """KB-001 §2.4：按整数解析。空、非整数（小数/科学计数/Infinity）解析失败时
     返回 None，之后由 §3.3（qty ≤ 0）统一剔除，不做截断。"""
-    text = (value or "").strip()
+    text = ("" if value is None else str(value)).strip()
     if not text:
         return None
     try:
@@ -60,7 +60,7 @@ def parse_date(value: Optional[str]) -> Optional[str]:
 
     `DD-MM-YYYY` 是旧 POS 的导出格式，**日在前、月在后**；解析不了返回 None。
     """
-    text = (value or "").strip()
+    text = ("" if value is None else str(value)).strip()
     if not text:
         return None
     m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)

@@ -196,10 +196,12 @@ class Retriever:
         import re
 
         found = []
-        for code in re.findall(r"(?<![a-z0-9])s\d{2}(?![0-9])", query.lower()):
-            canonical = self.index.aliases.by_store_code(code)
-            if canonical:
-                found.append(canonical)
+        lowered = query.lower()
+        for code in self.index.aliases.store_code_of.values():
+            if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(code.lower()), lowered):
+                canonical = self.index.aliases.by_store_code(code)
+                if canonical:
+                    found.append(canonical)
         return found
 
     def _hit(self, position: int, score: float, filtered: list[dict], padded: bool = False) -> Hit:

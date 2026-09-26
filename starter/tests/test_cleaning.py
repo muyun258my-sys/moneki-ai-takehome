@@ -26,10 +26,12 @@ def test_parse_amount():
     assert parse_amount("abc") == (None, "bad")
     assert parse_amount("Infinity") == (None, "bad")
     assert parse_amount("NaN") == (None, "bad")
+    assert parse_amount(18.0) == (1800, "ok")
 
 
 def test_parse_qty():
     assert parse_qty("5") == 5
+    assert parse_qty(5) == 5
     assert parse_qty("-3") == -3
     assert parse_qty("2.5") is None
     assert parse_qty("1e2") is None

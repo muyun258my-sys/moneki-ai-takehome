@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from kbqa.chunker import chunk_document
+from kbqa.aliases import build_alias_table
 from kbqa.entities import Catalog, wants_historical
 from kbqa.index import build_index
 from kbqa.loader import Document, decode_bytes, load_knowledge_base
@@ -100,6 +101,25 @@ def test_store_code_followed_by_chinese():
     assert catalog.find_product("P06六月卖了多少钱") == ("P06", None)
     # 编号后面紧跟数字不应误匹配（S012 不是 S01）
     assert catalog.find_store("S012") == (None, None)
+
+
+def test_catalog_accepts_replacement_id_lengths():
+    catalog = Catalog(
+        stores=[{"store_id": "BRANCH-100", "store_name": "New Branch", "category": "咖啡", "district": "x"}],
+        products=[{"product_id": "SKU-1000", "product_name": "新品", "product_category": "饮品", "unit_price": 9.0}],
+    )
+    assert catalog.find_store("BRANCH-100 今天营业额") == ("BRANCH-100", None)
+    assert catalog.find_product("SKU-1000 卖了多少") == ("SKU-1000", None)
+
+
+def test_aliases_use_replacement_store_code():
+    doc = Document(
+        doc_id="KB-900", title="门店别名", path=Path("KB-900.md"), fmt="md",
+        text="| 数据库写法 | 门店编号 | 常见别名 |\n|---|---|---|\n| New Branch | BRANCH-100 | 新店 |",
+    )
+    aliases = build_alias_table([doc])
+    assert aliases.by_store_code("BRANCH-100") == "New Branch"
+    assert "新店" in aliases.expansions("BRANCH-100 营业额")
 
 
 def test_wants_historical_version_refs():

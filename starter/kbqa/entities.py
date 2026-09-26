@@ -198,6 +198,11 @@ class Catalog:
     def find_store(self, text: str) -> tuple[Optional[str], Optional[str]]:
         """返回 (store_id, 未知门店编号)。问到不存在的门店时第二项非空。"""
         lowered = normalise(text)
+        # 先按当前数据目录里的真实编号匹配，编号长度和格式由数据决定。
+        for store_id in sorted(self.store_ids(), key=len, reverse=True):
+            code = normalise(store_id)
+            if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(code), lowered):
+                return store_id, None
         for code in re.findall(r"(?<![a-z0-9])s\d{1,2}(?![0-9])", lowered):
             upper = code.upper()
             if upper in self.store_ids():
@@ -219,9 +224,15 @@ class Catalog:
 
     def find_product(self, text: str) -> tuple[Optional[str], Optional[str]]:
         lowered = normalise(text)
+        # 商品编号同样以替换后的 products 表为准，不限制为两位数字。
+        product_ids = [product["product_id"] for product in self.products]
+        for product_id in sorted(product_ids, key=len, reverse=True):
+            code = normalise(product_id)
+            if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(code), lowered):
+                return product_id, None
         for code in re.findall(r"(?<![a-z0-9])p\d{1,2}(?![0-9])", lowered):
             upper = code.upper()
-            if upper in {product["product_id"] for product in self.products}:
+            if upper in product_ids:
                 return upper, None
             return None, upper
         matches = [

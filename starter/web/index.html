@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Monéki · 经营看板</title>
   <link rel="stylesheet" href="/assets/app.css">
-  <link rel="stylesheet" href="/assets/theme.css">
+  <link rel="stylesheet" href="/assets/theme.css?v=controls-1">
   <link rel="stylesheet" href="/assets/trace.css">
 </head>
 <body>
@@ -29,8 +29,8 @@
           <p class="muted" id="period-label">正在读取数据范围…</p>
         </div>
         <div class="top-actions">
-          <button class="icon-button" id="refresh-btn" title="刷新数据" aria-label="刷新数据">↻</button>
-          <button class="primary-button" id="open-chat"><span>✦</span>问问数据</button>
+          <button class="icon-button refresh-button" id="refresh-btn" title="按当前日期和门店筛选重新加载数据"><span aria-hidden="true">↻</span>刷新</button>
+          <button class="primary-button" id="open-chat" title="打开智能问答，查询经营数据和知识库"><span aria-hidden="true">✦</span>智能问答</button>
         </div>
       </header>
 
@@ -39,7 +39,7 @@
         <span class="filter-arrow">→</span>
         <div class="filter-group"><label for="end-date">结束日期</label><input id="end-date" type="date"></div>
         <div class="filter-group"><label for="store-select">门店</label><select id="store-select"><option value="">全部门店</option></select></div>
-        <button class="ghost-button" id="reset-filters">重置</button>
+        <button class="ghost-button" id="reset-filters" title="恢复默认日期和全部门店">重置筛选</button>
         <div class="filter-meta" id="last-updated">—</div>
       </section>
 
@@ -64,6 +64,6 @@
 
   <div class="modal-backdrop" id="chat-modal" hidden><section class="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chat-title"><div class="modal-head"><div><span class="eyebrow">ASSISTANT</span><h2 id="chat-title">智能问答</h2></div><button class="close-button" data-close="chat-modal" aria-label="关闭">×</button></div><div class="chat-messages" id="chat-messages"><div class="chat-bubble assistant">你好，我可以帮你查营业额、门店、商品和制度。试试问：<b>“6 月哪家店营业额最高？”</b></div></div><form class="chat-form" id="chat-form"><input id="chat-input" autocomplete="off" placeholder="输入你想了解的数据…"><button class="primary-button" type="submit">发送 <span>↗</span></button></form><div class="chat-foot"><span id="chat-mode">Mock 模式</span><button class="text-button" id="open-chat-trace" disabled>查看本轮 Trace</button></div></section></div>
   <div class="modal-backdrop" id="trace-modal" hidden><section class="trace-modal" role="dialog" aria-modal="true" aria-labelledby="trace-title"><div class="modal-head"><div><span class="eyebrow">DEBUG CONSOLE</span><h2 id="trace-title">Trace 调试面板</h2></div><button class="close-button" data-close="trace-modal" aria-label="关闭">×</button></div><div class="trace-summary" id="trace-summary">选择一条问答记录查看完整链路。</div><div class="trace-body" id="trace-body"></div></section></div>
-  <script src="/assets/app.js" defer></script>
+  <script src="/assets/app.js?v=controls-1" defer></script>
 </body>
 </html>

@@ -33,7 +33,11 @@ body { background: var(--paper); color: var(--ink); }
 .notice { background: #fff1ea; border-color: #e9baa9; color: #9b4b35; }
 .notice[hidden], .chart-tooltip[hidden] { display: none; }
 .main-content { min-width: 0; }
+.refresh-button { width: auto; min-width: 40px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; white-space: nowrap; }
+.refresh-button span { font-size: 20px; line-height: 1; }
 @media (max-width: 650px) {
   .topbar { flex-wrap: wrap; }
   .top-actions { margin-left: auto; }
+  .top-actions .primary-button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+  .top-actions .primary-button span { font-size: 15px; }
 }

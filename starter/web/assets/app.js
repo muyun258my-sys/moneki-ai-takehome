@@ -28,6 +28,7 @@ function setDefaults(period) {
   const start = period?.start || "2026-08-01";
   $("start-date").value = start.slice(0, 8) + "01";
   $("end-date").value = end;
+  $("store-select").value = "";
   $("period-label").textContent = `数据范围 ${period?.start || start} — ${period?.end || end}`;
 }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 import time
 from typing import Any, Optional
 
@@ -139,7 +140,7 @@ class Service:
             if name == "search_kb":
                 return self.retrieve(cleaned["query"], cleaned.get("top_k", 5))
             return getattr(self.tools, name)(**cleaned)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, sqlite3.Error) as exc:
             return {"error": "工具 %s 执行失败：%s" % (name, exc)}
 
     # -- 问答 -------------------------------------------------------------------
@@ -193,10 +194,11 @@ class Service:
             )
 
     def _run_engine(self, plan, trace: Trace, history: list[dict]) -> Answer:
-        if not self.settings.live or plan.intent == "refusal":
+        if not self.settings.live or plan.intent == "refusal" or plan.kind == "top_products":
             started = time.perf_counter()
             answer = self.answerer.answer(plan, trace)
-            trace.step("answer_mock", {"answer_type": answer.answer_type}, started=started)
+            step = "answer_mock" if not self.settings.live else "answer_deterministic"
+            trace.step(step, {"answer_type": answer.answer_type}, started=started)
             return answer
         client = LLMClient(
             self.settings.llm_base_url,

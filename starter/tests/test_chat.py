@@ -110,6 +110,28 @@ def test_colloquial_product_rank_uses_sales_data(chat, question):
     assert result["data_evidence"][0]["result"]["products"][0]["product_id"] == "P06"
 
 
+def test_product_rank_stays_available_in_live_mode(chat, monkeypatch):
+    from dataclasses import replace
+
+    monkeypatch.setattr(
+        chat, "settings",
+        replace(chat.settings, llm_base_url="http://example.test", llm_api_key="test", llm_model="test"),
+    )
+    monkeypatch.setattr("kbqa.service.LLMClient", lambda *args, **kwargs: pytest.fail("ranking should not call the model"))
+    result = chat.chat("rank-aug-live", "8月卖得最好的单品")
+    assert result["answer_type"] == "data"
+    assert "2026 年 8 月" in result["answer"]
+    assert "牛肉poke（P06）净营业额 19620.00 元" in result["answer"]
+    assert result["data_evidence"][0]["tool"] == "top_products"
+    assert chat.get_trace(result["trace_id"])["errors"] == []
+
+
+def test_bad_readonly_sql_returns_tool_error(chat):
+    result = chat.run_tool("run_sql", {"sql": "SELECT * FROM nonexistent_table"})
+    assert "error" in result
+    assert "no such table" in result["error"]
+
+
 @pytest.mark.parametrize(
     "follow_up, text",
     [

@@ -1,0 +1,36 @@
+.chat-trace-button {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.trace-label {
+  margin-top: 9px;
+  color: #52636c;
+  font-size: 12px;
+}
+
+.trace-hit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e4e9ed;
+  font-size: 12px;
+}
+
+.trace-hit strong, .trace-hit span, .trace-hit p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trace-hit span { color: #52636c; }
+.trace-hit p { grid-column: 1 / -1; margin: 0; line-height: 1.5; }
+.trace-hit.filtered { color: #a84c32; }
+.trace-raw { margin-top: 9px; font-size: 12px; }
+.trace-raw summary { cursor: pointer; color: #0b7c70; }
+
+@media (max-width: 650px) {
+  .trace-hit { grid-template-columns: 1fr; }
+  .trace-hit p { grid-column: 1; }
+}

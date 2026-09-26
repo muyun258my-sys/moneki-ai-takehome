@@ -1,0 +1,2 @@
+{"id":"X01","category":"data","points":1,"turns":[{"question":"6 月份一共有多少订单？","checks":{"answer_type_in":["data"],"numbers_all":[{"value":4311,"tol":0}],"evidence_required":true,"evidence_numbers":[{"value":4311,"tol":0}]}}]}
+{"id":"X02","category":"doc","points":1,"turns":[{"question":"S01 店长是谁？","checks":{"answer_type_in":["doc","hybrid"],"cite_all":["KB-030"],"text_all":["周岚"]}}]}

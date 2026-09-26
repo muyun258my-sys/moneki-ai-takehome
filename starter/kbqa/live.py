@@ -94,7 +94,7 @@ class LiveEngine:
                     continue
                 started = time.perf_counter()
                 result = self.run_tool(name, params)
-                trace.step("tool", {"tool": name, "params": params}, started=started)
+                trace.step("tool", {"tool": name, "params": params, "result": result}, started=started)
                 if name == "search_kb":
                     retrieved[json.dumps(params, ensure_ascii=False)] = result.get("results", [])
                 elif "error" not in result:

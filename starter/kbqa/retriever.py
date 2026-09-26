@@ -78,6 +78,7 @@ class SearchResult:
                     "doc_id": hit.doc_id,
                     "chunk_id": hit.chunk_id,
                     "score": round(hit.score, 4),
+                    "text": hit.text,
                     "padded": hit.padded,
                     "dropped_instructions": hit.dropped_instructions,
                 }
@@ -230,13 +231,16 @@ class Retriever:
         if historical is None:
             # `/api/retrieve` 没有规划器，问句里的“旧口径/以前”只能在这里认。
             historical = wants_historical(query)
-        filtered: list[dict] = []
-        excluded: set[str] = set()
+        excluded: dict[str, str] = {}
         for doc_id in self.index.docs_meta:
             reason = self._eligible(doc_id, as_of, store_id, historical)
             if reason:
-                excluded.add(doc_id)
-                filtered.append({"doc_id": doc_id, "reason": reason})
+                excluded[doc_id] = reason
+        filtered = [
+            {"doc_id": chunk.doc_id, "chunk_id": chunk.chunk_id, "score": None,
+             "reason": excluded[chunk.doc_id]}
+            for chunk in self.index.chunks if chunk.doc_id in excluded
+        ]
         # 被过滤掉的文档不参与打分，也不参与凑数：先过滤，再取 top_k。
         allowed = {
             position

@@ -104,20 +104,63 @@ async function askQuestion(event) {
   pendingBubble.textContent = "正在查数据…";
   messages.append(userBubble, pendingBubble);
   input.value = ""; messages.scrollTop = messages.scrollHeight;
-  try { const result = await api("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:state.sessionId, question})}); pendingBubble.outerHTML = `<div class="chat-bubble assistant">${esc(result.answer).replace(/\n/g,"<br>")}</div>`; state.latestTrace = result.trace_id; $("open-chat-trace").disabled = !state.latestTrace; }
+  try {
+    const result = await api("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:state.sessionId, question})});
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble assistant";
+    bubble.innerHTML = esc(result.answer).replace(/\n/g,"<br>");
+    if (result.trace_id) {
+      const button = document.createElement("button");
+      button.className = "text-button chat-trace-button";
+      button.type = "button";
+      button.dataset.traceId = result.trace_id;
+      button.textContent = "查看 Trace";
+      bubble.append(button);
+    }
+    pendingBubble.replaceWith(bubble);
+    state.latestTrace = result.trace_id;
+    $("open-chat-trace").disabled = !state.latestTrace;
+  }
   catch (error) { pendingBubble.outerHTML = `<div class="chat-bubble assistant">${esc(error.message)}，请稍后重试。</div>`; }
   messages.scrollTop = messages.scrollHeight;
 }
 
+const traceCode = (value) => `<pre class="trace-code">${esc(typeof value === "string" ? value : JSON.stringify(value, null, 2))}</pre>`;
+
+function renderTraceStep(step) {
+  let detail = step.detail ? traceCode(step.detail) : "";
+  if (step.step === "search" && step.detail) {
+    const search = step.detail;
+    detail = `<div class="trace-label">检索查询：${esc(search.query)}</div>`
+      + (search.hits || []).map((hit) => `<div class="trace-hit"><strong>${esc(hit.doc_id)} · ${esc(hit.chunk_id)}</strong><span>分数 ${esc(hit.score)}</span><p>${esc(hit.text)}</p></div>`).join("")
+      + (search.filtered || []).map((hit) => `<div class="trace-hit filtered"><strong>${esc(hit.doc_id)} · ${esc(hit.chunk_id)}</strong><span>已过滤：${esc(hit.reason)}</span></div>`).join("");
+  }
+  return `<div class="trace-step"><div class="trace-step-head"><span>${esc(step.step)}</span><time>${step.took_ms == null ? "" : `${step.took_ms} ms`}</time></div>${detail}</div>`;
+}
+
+function renderLlmCall(call, index) {
+  return `<div class="trace-step"><div class="trace-step-head"><span>模型调用 ${index + 1} · ${esc(call.model)}</span><time>${esc(call.took_ms)} ms</time></div>`
+    + `<div class="trace-label">状态 ${esc(call.status ?? call.error ?? "未知")} · 结束原因 ${esc(call.finish_reason || "—")}</div>`
+    + `<details class="trace-raw"><summary>最终提示词</summary>${traceCode(call.prompt || "")}</details>`
+    + `<details class="trace-raw" open><summary>模型原始输出</summary>${traceCode(call.raw_response || {content: call.raw_content || "", reasoning_content: call.raw_reasoning || "", tool_calls: call.raw_tool_calls || []})}</details></div>`;
+}
+
 async function showTrace(traceId) {
   if (!traceId) return; openModal("trace-modal"); $("trace-summary").textContent = `Trace ID：${traceId} · 加载中…`; $("trace-body").innerHTML = "";
-  try { const trace = await api(`/api/trace/${encodeURIComponent(traceId)}`); $("trace-summary").textContent = `Trace ID：${trace.trace_id} · ${trace.question} · 总耗时 ${trace.total_ms} ms`; $("trace-body").innerHTML = (trace.steps || []).map((step) => `<div class="trace-step"><div class="trace-step-head"><span>${esc(step.step)}</span><time>${step.took_ms == null ? "" : `${step.took_ms} ms`}</time></div>${step.detail ? `<pre class="trace-code">${esc(JSON.stringify(step.detail, null, 2))}</pre>` : ""}</div>`).join("") + (trace.errors || []).map((error) => `<div class="trace-error"><b>${esc(error.where)}</b> · ${esc(error.message)}</div>`).join(""); }
+  try {
+    const trace = await api(`/api/trace/${encodeURIComponent(traceId)}`);
+    $("trace-summary").textContent = `Trace ID：${trace.trace_id} · ${trace.question} · 总耗时 ${trace.total_ms} ms`;
+    $("trace-body").innerHTML = (trace.steps || []).map(renderTraceStep).join("")
+      + (trace.llm_calls || []).map(renderLlmCall).join("")
+      + (trace.errors || []).map((error) => `<div class="trace-error"><b>${esc(error.where)} · ${esc(error.type)}</b> · ${esc(error.message)}${traceCode(error.traceback || "")}</div>`).join("");
+  }
   catch (error) { $("trace-summary").textContent = error.message; }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("refresh-btn").addEventListener("click", loadDashboard); $("store-select").addEventListener("change", loadDashboard); $("start-date").addEventListener("change", loadDashboard); $("end-date").addEventListener("change", loadDashboard); $("reset-filters").addEventListener("click", () => { setDefaults(state.meta.data_period); loadDashboard(); }); $("dismiss-error").addEventListener("click", hideError); $("chat-form").addEventListener("submit", askQuestion);
   $("open-chat").addEventListener("click", () => openModal("chat-modal")); $("open-chat-nav").addEventListener("click", () => openModal("chat-modal")); $("open-chat-trace").addEventListener("click", () => showTrace(state.latestTrace)); $("open-trace-latest").addEventListener("click", () => showTrace(state.latestTrace)); $("quality-more").addEventListener("click", () => document.querySelector("#quality").scrollIntoView({behavior:"smooth"}));
+  $("chat-messages").addEventListener("click", (event) => { const button = event.target.closest("[data-trace-id]"); if (button) showTrace(button.dataset.traceId); });
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.close))); document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.addEventListener("click", (event) => { if (event.target === backdrop) closeModal(backdrop.id); }));
   try { await loadMeta(); await loadDashboard(); } catch (error) { showError(error); }
 });

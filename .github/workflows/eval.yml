@@ -1,0 +1,50 @@
+name: Tests and public eval
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LLM_BASE_URL: ""
+      LLM_API_KEY: ""
+      LLM_MODEL: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r starter/requirements.txt
+      - name: Run unit tests
+        run: python -m pytest starter/tests eval/tests -q
+      - name: Rebuild data and index
+        working-directory: starter
+        run: python -m kbqa.rebuild
+      - name: Start service
+        run: |
+          python -m uvicorn kbqa.server:app --app-dir starter --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/service.log" 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/service.log"
+          exit 1
+      - name: Run public eval
+        run: python eval/run_eval.py --base-url http://127.0.0.1:8000 --questions eval/public_questions.jsonl --out "$RUNNER_TEMP/public-eval" --fail-under 100
+      - name: Run extra eval
+        run: python eval/run_eval.py --base-url http://127.0.0.1:8000 --questions eval/extra_questions.jsonl --out "$RUNNER_TEMP/extra-eval" --fail-under 100
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-eval
+          path: |
+            ${{ runner.temp }}/public-eval/report.json
+            ${{ runner.temp }}/public-eval/report.md
+            ${{ runner.temp }}/extra-eval/report.json
+            ${{ runner.temp }}/extra-eval/report.md
+            ${{ runner.temp }}/service.log

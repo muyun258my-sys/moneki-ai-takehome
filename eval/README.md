@@ -24,6 +24,7 @@ python3 eval/run_eval.py --base-url http://localhost:8000 --questions eval/publi
 | `--out` | 当前目录 | 报告输出目录 |
 | `--only` | 不限 | 只跑一个类别，例如 `--only retrieval`，调试时很省时间 |
 | `--timeout` | 180 秒 | 单次请求的超时，默认值与契约第 7.3 节的 180 秒总预算一致；开发时用哪家模型都行，评测时我们会按你的 `LLM_SETUP.md` 把服务换到 DeepSeek 官方 API（`deepseek-flash`），思考模式加几轮工具调用可能要几十秒 |
+| `--fail-under` | 不限制 | 得分低于指定百分比时退出码为 1；CI 用 `100` 作为回归门槛 |
 
 脚本严格一题一题地发请求，不并发，所以整套题库跑下来需要一些时间。
 报告里会记录每一题的耗时，以及所有题的中位数和最大值。

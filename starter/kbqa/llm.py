@@ -84,7 +84,7 @@ class LLMClient:
             "messages": len(messages),
             "tools": len(tools or []),
             # 契约 §6：trace 里要看得到发给模型的最终提示词。
-            "prompt": _preview(json.dumps(messages, ensure_ascii=False)),
+            "prompt": json.dumps(messages, ensure_ascii=False),
         }
         try:
             response = httpx.post(
@@ -109,7 +109,8 @@ class LLMClient:
         if response.status_code != 200:
             # D13：400/401/402/422/429/500/503 都在这里变成结构化错误。
             detail = _error_detail(response)
-            record.update(error="http_%d" % response.status_code, detail=detail)
+            record.update(error="http_%d" % response.status_code, detail=detail,
+                          raw_response=response.text)
             self._note(on_call, record, started)
             raise LLMError("http_error", detail, status=response.status_code)
 
@@ -117,13 +118,14 @@ class LLMClient:
         try:
             payload = json.loads(response.text.strip() or "{}")
         except ValueError as exc:
-            record.update(error="bad_json", detail=response.text[:200])
+            record.update(error="bad_json", detail=response.text[:200],
+                          raw_response=response.text)
             self._note(on_call, record, started)
             raise LLMError("bad_json", "模型返回的不是合法 JSON：%s" % response.text[:200]) from exc
 
         choices = payload.get("choices") or []
         if not choices:
-            record.update(error="no_choice")
+            record.update(error="no_choice", raw_response=response.text)
             self._note(on_call, record, started)
             raise LLMError("no_choice", "模型响应里没有 choices")
         choice = choices[0]
@@ -138,8 +140,9 @@ class LLMClient:
             has_reasoning=bool(message.get("reasoning_content")),
             usage=payload.get("usage"),
             # 契约 §6：模型原始输出也要留痕。思考过程只留在 trace 里，不进任何对外字段。
-            raw_content=_preview(content),
-            raw_reasoning=_preview(message.get("reasoning_content") or ""),
+            raw_content=content,
+            raw_reasoning=message.get("reasoning_content") or "",
+            raw_tool_calls=tool_calls,
         )
         self._note(on_call, record, started)
 
@@ -179,11 +182,6 @@ class LLMClient:
         if on_call is not None:
             record["took_ms"] = round((time.perf_counter() - started) * 1000, 1)
             on_call(record)
-
-
-def _preview(text: str, limit: int = 4000) -> str:
-    text = text or ""
-    return text if len(text) <= limit else text[:limit] + "…（截断，共 %d 字）" % len(text)
 
 
 def _error_detail(response: httpx.Response) -> str:

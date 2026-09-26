@@ -1427,6 +1427,23 @@ class TestScoringAndReport(EvalCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_main_fails_when_score_is_below_threshold(self):
+        questions = [gallery()[0]]
+        tmp = tempfile.mkdtemp(prefix="t3a-eval-gate-")
+        path = os.path.join(tmp, "questions.jsonl")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(questions[0], ensure_ascii=False) + "\n")
+        service = Service(Stub(questions, self.kb, variation="numbers_all"))
+        try:
+            code = R.main(["--base-url", service.url, "--questions", path,
+                           "--kb", KB_DIR, "--out", tmp, "--fail-under", "100"])
+            self.assertEqual(1, code)
+            with open(os.path.join(tmp, "report.json"), encoding="utf-8") as fh:
+                self.assertLess(json.load(fh)["total"]["ratio"], 1)
+        finally:
+            service.stop()
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_broken_question_file_is_reported_not_crashed(self):
         tmp = tempfile.mkdtemp(prefix="t3a-eval-")
         path = os.path.join(tmp, "broken.jsonl")

@@ -20,6 +20,12 @@ make rebuild DATA_DIR=/path/to/data KB_DIR=/path/to/knowledge_base
 
 `DATA_DIR`、`KB_DIR`、`VAR_DIR` 也可以直接作为环境变量传给 `make run`。
 
+## L4 调试与回归
+
+在看板问答区，每条回答的“查看 Trace”可打开对应记录。面板展示检索命中与过滤原因、工具输入和结果、模型提示词与原始输出，以及耗时和错误。无 Key 的 mock 模式不会产生模型调用记录。
+
+仓库根目录的 `.github/workflows/eval.yml` 在 push 和 pull request 时运行单测，启动 mock 服务，并执行公开题库及 `eval/extra_questions.jsonl`。任一评测低于 100% 会使 CI 失败；报告作为工作流产物保留。本地运行评测时可用 `--fail-under 100` 应用同一门槛。
+
 ## 目录
 
 | 文件 | 干什么的 |

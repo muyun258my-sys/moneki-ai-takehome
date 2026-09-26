@@ -1516,6 +1516,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="只跑某一个类别")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                         help="单次请求超时秒数，默认 180")
+    parser.add_argument("--fail-under", type=float, default=None,
+                        help="得分低于此百分比时退出码为 1，供 CI 使用")
     return parser
 
 
@@ -1551,6 +1553,10 @@ def main(argv: list[str] | None = None) -> int:
     print("总分 %.2f / %.2f（%.1f%%）-> %s, %s"
           % (total["earned"], total["points"], total["ratio"] * 100,
              json_path, md_path))
+    if args.fail_under is not None and total["ratio"] * 100 < args.fail_under:
+        print("评测未达标：%.1f%% < %.1f%%" % (total["ratio"] * 100, args.fail_under),
+              file=sys.stderr)
+        return 1
     return 0
 
 

@@ -21,6 +21,7 @@ class Trace:
     errors: list[dict] = field(default_factory=list)
     llm_calls: list[dict] = field(default_factory=list)
     _t0: float = field(default_factory=time.perf_counter)
+    _last_step: float = field(default_factory=time.perf_counter)
 
     def step(self, name: str, payload: Any = None, started: Optional[float] = None) -> None:
         now = time.perf_counter()
@@ -28,10 +29,11 @@ class Trace:
             {
                 "step": name,
                 "at_ms": round((now - self._t0) * 1000, 1),
-                "took_ms": round((now - started) * 1000, 1) if started else None,
+                "took_ms": round((now - (started if started is not None else self._last_step)) * 1000, 1),
                 "detail": payload,
             }
         )
+        self._last_step = now
 
     def error(self, where: str, exc: BaseException) -> None:
         """真实原因要留下来：类型、消息、堆栈，一个都不少。"""

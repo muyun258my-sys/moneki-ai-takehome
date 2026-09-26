@@ -95,9 +95,17 @@ function closeModal(id) { $(id).hidden = true; document.body.style.overflow = ""
 
 async function askQuestion(event) {
   event.preventDefault(); const input = $("chat-input"); const question = input.value.trim(); if (!question) return;
-  const messages = $("chat-messages"); messages.insertAdjacentHTML("beforeend", `<div class="chat-bubble user">${esc(question)}</div><div class="chat-bubble assistant pending" id="pending-bubble">正在查数据…</div>`); input.value = ""; messages.scrollTop = messages.scrollHeight;
-  try { const result = await api("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:state.sessionId, question})}); $("pending-bubble").outerHTML = `<div class="chat-bubble assistant">${esc(result.answer).replace(/\n/g,"<br>")}</div>`; state.latestTrace = result.trace_id; $("open-chat-trace").disabled = !state.latestTrace; }
-  catch (error) { $("pending-bubble").outerHTML = `<div class="chat-bubble assistant">${esc(error.message)}，请稍后重试。</div>`; }
+  const messages = $("chat-messages");
+  const userBubble = document.createElement("div");
+  userBubble.className = "chat-bubble user";
+  userBubble.textContent = question;
+  const pendingBubble = document.createElement("div");
+  pendingBubble.className = "chat-bubble assistant pending";
+  pendingBubble.textContent = "正在查数据…";
+  messages.append(userBubble, pendingBubble);
+  input.value = ""; messages.scrollTop = messages.scrollHeight;
+  try { const result = await api("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({session_id:state.sessionId, question})}); pendingBubble.outerHTML = `<div class="chat-bubble assistant">${esc(result.answer).replace(/\n/g,"<br>")}</div>`; state.latestTrace = result.trace_id; $("open-chat-trace").disabled = !state.latestTrace; }
+  catch (error) { pendingBubble.outerHTML = `<div class="chat-bubble assistant">${esc(error.message)}，请稍后重试。</div>`; }
   messages.scrollTop = messages.scrollHeight;
 }
 

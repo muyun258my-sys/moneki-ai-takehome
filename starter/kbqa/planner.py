@@ -260,6 +260,7 @@ class Planner:
             explicit_metric
             or asks_payment
             or E.has_any(text, E.SALES_RANK_WORDS)
+            or (asks_rank and E.has_any(text, E.PRODUCT_RANK_WORDS))
             or (asks_business and plan.slots.get("time_scoped"))
         )
         compares = len(windows) > 1 and E.compares_periods(text)

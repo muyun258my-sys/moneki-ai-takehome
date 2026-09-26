@@ -130,13 +130,17 @@ const traceCode = (value) => `<pre class="trace-code">${esc(typeof value === "st
 
 function renderTraceStep(step) {
   let detail = step.detail ? traceCode(step.detail) : "";
+  if (step.step === "response" && step.detail?.answer) {
+    const notes = (step.detail.notes || []).join("；");
+    detail = `<div class="trace-label">${esc(notes || "实际返回给用户的内容")}</div>${traceCode(step.detail.answer)}`;
+  }
   if (step.step === "search" && step.detail) {
     const search = step.detail;
     detail = `<div class="trace-label">检索查询：${esc(search.query)}</div>`
       + (search.hits || []).map((hit) => `<div class="trace-hit"><strong>${esc(hit.doc_id)} · ${esc(hit.chunk_id)}</strong><span>分数 ${esc(hit.score)}</span><p>${esc(hit.text)}</p></div>`).join("")
       + (search.filtered || []).map((hit) => `<div class="trace-hit filtered"><strong>${esc(hit.doc_id)} · ${esc(hit.chunk_id)}</strong><span>已过滤：${esc(hit.reason)}</span></div>`).join("");
   }
-  return `<div class="trace-step"><div class="trace-step-head"><span>${esc(step.step)}</span><time>${step.took_ms == null ? "" : `${step.took_ms} ms`}</time></div>${detail}</div>`;
+  return `<div class="trace-step"><div class="trace-step-head"><span>${esc(step.step === "response" ? "最终回答" : step.step)}</span><time>${step.took_ms == null ? "" : `${step.took_ms} ms`}</time></div>${detail}</div>`;
 }
 
 function renderLlmCall(call, index) {
@@ -151,9 +155,11 @@ async function showTrace(traceId) {
   try {
     const trace = await api(`/api/trace/${encodeURIComponent(traceId)}`);
     $("trace-summary").textContent = `Trace ID：${trace.trace_id} · ${trace.question} · 总耗时 ${trace.total_ms} ms`;
-    $("trace-body").innerHTML = (trace.steps || []).map(renderTraceStep).join("")
+    const steps = trace.steps || [];
+    $("trace-body").innerHTML = steps.filter((step) => step.step !== "response").map(renderTraceStep).join("")
       + (trace.llm_calls || []).map(renderLlmCall).join("")
-      + (trace.errors || []).map((error) => `<div class="trace-error"><b>${esc(error.where)} · ${esc(error.type)}</b> · ${esc(error.message)}${traceCode(error.traceback || "")}</div>`).join("");
+      + (trace.errors || []).map((error) => `<div class="trace-error"><b>${esc(error.where)} · ${esc(error.type)}</b> · ${esc(error.message)}${traceCode(error.traceback || "")}</div>`).join("")
+      + steps.filter((step) => step.step === "response").map(renderTraceStep).join("");
   }
   catch (error) { $("trace-summary").textContent = error.message; }
 }

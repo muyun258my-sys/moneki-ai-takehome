@@ -101,16 +101,31 @@ def describe_payment(result: dict, scope: str, focus: str = "") -> str:
     return "%s 共 %s 单，其中%s。" % (scope, count(result.get("total_orders")), "；".join(pieces))
 
 
-def describe_top(result: dict, scope: str, limit: int = 3) -> str:
+def describe_top(result: dict, scope: str, limit: int = 3, lowest: bool = False,
+                 metric: str = "net_revenue") -> str:
     items = result.get("products") or []
     if not items:
         return "%s：区间内没有销售记录。" % scope
+    label = METRIC_LABELS.get(metric, METRIC_LABELS["net_revenue"])
+    if lowest:
+        bottom = items[0]
+        text = "%s 按%s排序，最低的是%s（%s），%s。" % (
+            scope, label, bottom["product_name"], bottom["product_id"], metric_value(metric, bottom)
+        )
+        if bottom["orders"] == 0:
+            sold = next((item for item in items if item["orders"] > 0), None)
+            text += "该商品本期没有销售。"
+            if sold:
+                text += "只看有销售的商品，最低的是%s（%s），%s。" % (
+                    sold["product_name"], sold["product_id"], metric_value(metric, sold)
+                )
+        return text
     pieces = [
         "%s（%s）净营业额 %s 元、销量 %s 件"
         % (item["product_name"], item["product_id"], money(item["net_revenue"]), count(item["qty"]))
         for item in items[:limit]
     ]
-    return "%s 按净营业额排序，卖得最好的是%s。" % (scope, "；".join(pieces))
+    return "%s 按%s排序，卖得最好的是%s。" % (scope, label, "；".join(pieces))
 
 
 def describe_by_store(

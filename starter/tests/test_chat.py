@@ -110,7 +110,14 @@ def test_colloquial_product_rank_uses_sales_data(chat, question):
     assert result["data_evidence"][0]["result"]["products"][0]["product_id"] == "P06"
 
 
-def test_product_rank_stays_available_in_live_mode(chat, monkeypatch):
+@pytest.mark.parametrize(
+    "question, expected",
+    [
+        ("8月卖得最好的单品", "牛肉poke（P06）净营业额 19620.00 元"),
+        ("7月卖的最差的单品", "可乐（P16），1100.00 元"),
+    ],
+)
+def test_product_rank_stays_available_in_live_mode(chat, monkeypatch, question, expected):
     from dataclasses import replace
 
     monkeypatch.setattr(
@@ -118,10 +125,9 @@ def test_product_rank_stays_available_in_live_mode(chat, monkeypatch):
         replace(chat.settings, llm_base_url="http://example.test", llm_api_key="test", llm_model="test"),
     )
     monkeypatch.setattr("kbqa.service.LLMClient", lambda *args, **kwargs: pytest.fail("ranking should not call the model"))
-    result = chat.chat("rank-aug-live", "8月卖得最好的单品")
+    result = chat.chat("rank-live-" + question, question)
     assert result["answer_type"] == "data"
-    assert "2026 年 8 月" in result["answer"]
-    assert "牛肉poke（P06）净营业额 19620.00 元" in result["answer"]
+    assert expected in result["answer"]
     assert result["data_evidence"][0]["tool"] == "top_products"
     assert chat.get_trace(result["trace_id"])["errors"] == []
 
@@ -130,6 +136,28 @@ def test_bad_readonly_sql_returns_tool_error(chat):
     result = chat.run_tool("run_sql", {"sql": "SELECT * FROM nonexistent_table"})
     assert "error" in result
     assert "no such table" in result["error"]
+
+
+@pytest.mark.parametrize(
+    "question, metric, sold_product, sold_value",
+    [
+        ("7月卖的最差的单品", "net_revenue", "可乐（P16）", "1100.00 元"),
+        ("7月卖得最差的单品", "net_revenue", "可乐（P16）", "1100.00 元"),
+        ("7月最差的单品", "net_revenue", "可乐（P16）", "1100.00 元"),
+        ("7月卖的最少的单品", "qty", "毛豆（P14）", "186 件"),
+    ],
+)
+def test_lowest_product_rank_includes_unsold_and_sold(chat, question, metric, sold_product, sold_value):
+    result = chat.chat("lowest-" + question, question)
+    assert result["answer_type"] == "data"
+    assert "冷萃乌龙茶（P21）" in result["answer"]
+    assert sold_product in result["answer"]
+    assert sold_value in result["answer"]
+    evidence = result["data_evidence"][0]
+    assert evidence["tool"] == "top_products"
+    assert evidence["params"]["lowest"] is True
+    assert evidence["params"]["metric"] == metric
+    assert evidence["result"]["products"][0]["product_id"] == "P21"
 
 
 @pytest.mark.parametrize(

@@ -215,20 +215,28 @@ class DataTools:
             "payments": payments,
         }
 
-    def top_products(self, start: str, end: str, store_id=None, limit: int = 10) -> dict:
+    def top_products(
+        self, start: str, end: str, store_id=None, limit: int = 10,
+        lowest: bool = False, metric: str = "net_revenue",
+    ) -> dict:
         where, params = self._where(start, end, store_id)
+        source = (
+            "products p LEFT JOIN sales_clean s ON s.product_id = p.product_id AND " + where
+            if lowest else
+            "sales_clean s LEFT JOIN products p ON p.product_id = s.product_id WHERE " + where
+        )
+        order_column = {"net_revenue": 4, "orders": 5, "qty": 6}.get(metric, 4)
+        direction = "ASC" if lowest else "DESC"
         rows = self.conn.execute(
-            """
-            SELECT s.product_id, p.product_name, p.product_category,
+            f"""
+            SELECT p.product_id, p.product_name, p.product_category,
                    COALESCE(SUM(s.amount_cents), 0),
                    COUNT(DISTINCT CASE WHEN s.amount_cents > 0 THEN s.order_id END),
                    COALESCE(SUM(CASE WHEN s.amount_cents > 0 THEN s.qty
                                      WHEN s.amount_cents < 0 THEN -s.qty
                                      ELSE 0 END), 0)
-            FROM sales_clean s LEFT JOIN products p ON p.product_id = s.product_id
-            WHERE %s GROUP BY s.product_id ORDER BY 4 DESC
-            """
-            % where,
+            FROM {source} GROUP BY p.product_id ORDER BY {order_column} {direction}, p.product_id
+            """,
             params,
         ).fetchall()
         items = [

@@ -337,10 +337,13 @@ class Answerer(HybridAnswers):
                 rows, scope, plan.metric, has_any(plan.standalone, LOWEST_WORDS)
             )
         if plan.kind == "top_products":
+            lowest = has_any(plan.standalone, LOWEST_WORDS)
             result = self._call(
-                evidence, "top_products", start=start, end=end, store_id=plan.store_id, limit=10
+                evidence, "top_products", start=start, end=end, store_id=plan.store_id,
+                limit=max(10, len(self.catalog.products)) if lowest else 10,
+                lowest=lowest, metric=plan.metric,
             )
-            return render.describe_top(result, scope)
+            return render.describe_top(result, scope, lowest=lowest, metric=plan.metric)
         if plan.kind == "by_store":
             result = self._call(evidence, "by_store", start=start, end=end, product_id=plan.product_id)
             return render.describe_by_store(

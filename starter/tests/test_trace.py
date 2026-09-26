@@ -20,6 +20,8 @@ def test_mock_trace_has_search_and_evidence(client):
 
     response = client.post("/api/chat", json={"question": "6 月营业额是多少？"})
     trace = client.get("/api/trace/%s" % response.json()["trace_id"]).json()
+    final = next(step["detail"] for step in trace["steps"] if step["step"] == "response")
+    assert final["answer"] == response.json()["answer"]
     evidence = next(step["detail"] for step in trace["steps"] if step["step"] == "evidence")
     assert evidence[0]["tool"] == "query_metrics"
     assert evidence[0]["result"]["net_revenue"] == 156757.0

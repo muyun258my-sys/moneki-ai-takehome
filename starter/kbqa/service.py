@@ -159,7 +159,7 @@ class Service:
             "data_evidence": answer.data_evidence,
             "trace_id": trace.trace_id,
         }
-        trace.step("response", {"answer_type": answer.answer_type, "notes": answer.notes})
+        trace.step("response", {"answer": answer.answer, "answer_type": answer.answer_type, "notes": answer.notes})
         if answer.data_evidence:
             trace.step("evidence", answer.data_evidence)
         self.traces.save(trace)

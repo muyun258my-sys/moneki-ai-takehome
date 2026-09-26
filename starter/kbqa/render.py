@@ -138,6 +138,26 @@ def describe_by_store(
     )
 
 
+def describe_by_store_extremes(result: dict, scope: str, metric: str = "net_revenue") -> str:
+    """同一句同时问最高和最低时，给出两端门店，避免退化成商品排行。"""
+    stores = [store for store in result.get("stores") or [] if store.get(metric) is not None]
+    if not stores:
+        return "%s：区间内没有销售记录。" % scope
+    highest = max(stores, key=lambda store: store[metric])
+    lowest = min(stores, key=lambda store: store[metric])
+    label = METRIC_LABELS.get(metric, metric)
+    return "%s %s最高的是 %s %s，为 %s；最低的是 %s %s，为 %s。" % (
+        scope,
+        label,
+        highest["store_id"],
+        highest.get("store_name", ""),
+        metric_value(metric, highest),
+        lowest["store_id"],
+        lowest.get("store_name", ""),
+        metric_value(metric, lowest),
+    )
+
+
 def describe_by_month(rows: list, scope: str, metric: str = "net_revenue", lowest: bool = False) -> str:
     """逐月对照：先说最高（或最低）的那个月，再按时间顺序列出每个月。"""
     usable = [(window, result) for window, result in rows if result.get(metric) is not None]

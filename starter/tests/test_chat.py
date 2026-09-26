@@ -270,6 +270,15 @@ def test_store_ranking_uses_asked_metric(chat, question, field, lowest):
     assert "净营业额" not in head
 
 
+def test_store_extremes_answer_both_ends(chat):
+    """“最高和最低营业额”要同时返回门店两端，而不是误走商品 Top。"""
+    result = chat.chat("rank-extremes", "8 月最高和最低营业额")
+    assert result["data_evidence"][0]["tool"] == "by_store"
+    head = result["answer"].split("；")[0]
+    assert "最高的是" in head and "最低的是" in result["answer"]
+    assert "P06" not in result["answer"]
+
+
 @pytest.mark.parametrize(
     "question, field, months",
     [

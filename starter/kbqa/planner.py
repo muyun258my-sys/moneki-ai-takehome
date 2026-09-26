@@ -219,6 +219,10 @@ class Planner:
         explicit_metric = bool(plan.slots.get("metric_explicit"))
         asks_policy = E.has_any(text, E.POLICY_WORDS)
         asks_rank = E.has_any(text, E.RANK_WORDS)
+        asks_rank_extremes = (
+            E.has_any(text, ("最高和最低", "最高与最低", "最高及最低", "最高、最低", "最高最低"))
+            and not plan.product_id
+        )
         asks_payment = E.has_any(text, E.PAYMENT_WORDS)
         asks_why = E.has_any(text, E.WHY_WORDS)
         asks_target = E.has_any(text, E.TARGET_WORDS)
@@ -270,6 +274,9 @@ class Planner:
             plan.kind, plan.intent = "daily", "data"
         elif asks_rank and E.has_any(text, E.CATEGORY_WORDS):
             plan.kind, plan.intent = "category", "data"
+        elif asks_rank_extremes:
+            # 未点名商品时，“最高和最低营业额”默认比较各门店两端。
+            plan.kind, plan.intent = "by_store_extremes", "data"
         elif E.has_any(text, E.STORE_WORDS) and not plan.store_id:
             # “各门店 7 月营业额分别是多少”没有排名词，但要的就是分店明细。
             plan.kind, plan.intent = "by_store", "data"

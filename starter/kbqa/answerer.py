@@ -346,6 +346,9 @@ class Answerer(HybridAnswers):
             return render.describe_by_store(
                 result, scope, plan.metric, has_any(plan.standalone, LOWEST_WORDS)
             )
+        if plan.kind == "by_store_extremes":
+            result = self._call(evidence, "by_store", start=start, end=end, product_id=plan.product_id)
+            return render.describe_by_store_extremes(result, scope, plan.metric)
         if plan.kind == "category":
             result = self._call(evidence, "by_store_category", start=start, end=end)
             return render.describe_category(result, scope)

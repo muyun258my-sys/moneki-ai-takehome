@@ -110,7 +110,7 @@ def describe_top(result: dict, scope: str, limit: int = 3) -> str:
         % (item["product_name"], item["product_id"], money(item["net_revenue"]), count(item["qty"]))
         for item in items[:limit]
     ]
-    return "%s 卖得最好的是%s。" % (scope, "；".join(pieces))
+    return "%s 按净营业额排序，卖得最好的是%s。" % (scope, "；".join(pieces))
 
 
 def describe_by_store(

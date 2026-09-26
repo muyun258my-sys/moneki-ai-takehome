@@ -99,6 +99,17 @@ def test_colloquial_metric_routes_to_data(chat, question, field, value):
     assert result["data_evidence"][0]["result"][field] == value
 
 
+@pytest.mark.parametrize("question", ["卖的最好的单品是哪个", "哪个商品卖的最好", "卖得最好的单品是哪个"])
+def test_colloquial_product_rank_uses_sales_data(chat, question):
+    result = chat.chat("rank-" + question, question)
+    assert result["answer_type"] == "data"
+    assert result["citations"] == []
+    assert "按净营业额排序" in result["answer"]
+    assert "牛肉poke（P06）" in result["answer"]
+    assert result["data_evidence"][0]["tool"] == "top_products"
+    assert result["data_evidence"][0]["result"]["products"][0]["product_id"] == "P06"
+
+
 @pytest.mark.parametrize(
     "follow_up, text",
     [

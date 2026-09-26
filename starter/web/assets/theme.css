@@ -1,0 +1,39 @@
+/* Moneki / Anthropic inspired visual layer: warm paper, ink, coral accent. */
+:root {
+  --ink: #1f1d1a;
+  --muted: #746e66;
+  --line: #ded8cf;
+  --paper: #f7f5f0;
+  --teal: #d97757;
+  --teal-soft: #f5e5dd;
+  --orange: #d97757;
+  --shadow: 0 8px 24px rgba(53, 42, 32, .055);
+  font-family: Arial, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+body { background: var(--paper); color: var(--ink); }
+.sidebar { background: #1f1d1a; color: #f4efe7; }
+.brand-mark { color: #1f1d1a; background: #e3a184; border-radius: 50%; }
+.workspace-label, .sidebar-foot { color: #aaa096; }
+.sidebar-foot { border-color: #3b3732; }
+.nav-item { color: #b9b0a7; }
+.nav-item:hover, .nav-item.active { background: #39342f; }
+.nav-item.active { box-shadow: inset 3px 0 #e3a184; }
+.nav-icon { color: #e3a184; }
+.live-pill, .quality-badge { background: var(--teal-soft); color: #a94f36; }
+.primary-button { background: #d97757; box-shadow: 0 5px 12px rgba(174, 84, 55, .18); }
+.primary-button:hover { background: #bc6248; }
+.metric-card.accent { border-top-color: #d97757; }
+.chart-line { stroke: #b85e46; }
+.chart-point { stroke: #b85e46; }
+.legend-dot, .bar i, .trace-step:before { background: #b85e46; }
+.bar { background: #f5e5dd; }
+.score-ring { background: conic-gradient(#b85e46 0deg, #eee9e1 0deg); }
+.trace-step { border-color: #e6c5b8; }
+.trace-code { background: #24211e; }
+.notice { background: #fff1ea; border-color: #e9baa9; color: #9b4b35; }
+.notice[hidden], .chart-tooltip[hidden] { display: none; }
+.main-content { min-width: 0; }
+@media (max-width: 650px) {
+  .topbar { flex-wrap: wrap; }
+  .top-actions { margin-left: auto; }
+}

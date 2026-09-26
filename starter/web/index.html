@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monéki · 经营看板</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/theme.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">M</span><span>Monéki</span></div>
+      <div class="workspace-label">OPERATIONS / 运营中台</div>
+      <nav class="nav-list" aria-label="主导航">
+        <a class="nav-item active" href="#dashboard"><span class="nav-icon">⌂</span>经营看板</a>
+        <a class="nav-item" href="#quality"><span class="nav-icon">◒</span>数据质量</a>
+        <button class="nav-item" id="open-chat-nav"><span class="nav-icon">✦</span>智能问答</button>
+      </nav>
+      <div class="sidebar-foot"><span class="status-dot"></span><span id="service-status">服务检查中</span></div>
+    </aside>
+
+    <main class="main-content" id="dashboard">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">经营总览 <span class="live-pill"><span></span>LIVE DATA</span></div>
+          <h1>今日，生意怎么样？</h1>
+          <p class="muted" id="period-label">正在读取数据范围…</p>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="refresh-btn" title="刷新数据" aria-label="刷新数据">↻</button>
+          <button class="primary-button" id="open-chat"><span>✦</span>问问数据</button>
+        </div>
+      </header>
+
+      <section class="filters" aria-label="看板筛选">
+        <div class="filter-group"><label for="start-date">开始日期</label><input id="start-date" type="date"></div>
+        <span class="filter-arrow">→</span>
+        <div class="filter-group"><label for="end-date">结束日期</label><input id="end-date" type="date"></div>
+        <div class="filter-group"><label for="store-select">门店</label><select id="store-select"><option value="">全部门店</option></select></div>
+        <button class="ghost-button" id="reset-filters">重置</button>
+        <div class="filter-meta" id="last-updated">—</div>
+      </section>
+
+      <div class="notice" id="error-notice" hidden><span>!</span><span id="error-text"></span><button id="dismiss-error" aria-label="关闭提示">×</button></div>
+
+      <section class="metric-grid" aria-label="核心指标">
+        <article class="metric-card accent"><div class="metric-head"><span>净营业额</span><span class="metric-icon">¥</span></div><strong id="metric-revenue">—</strong><div class="metric-foot" id="metric-revenue-foot">等待数据</div></article>
+        <article class="metric-card"><div class="metric-head"><span>有效订单</span><span class="metric-icon">↗</span></div><strong id="metric-orders">—</strong><div class="metric-foot" id="metric-orders-foot">—</div></article>
+        <article class="metric-card"><div class="metric-head"><span>客单价</span><span class="metric-icon">◎</span></div><strong id="metric-aov">—</strong><div class="metric-foot">按净营业额 / 有效订单</div></article>
+        <article class="metric-card"><div class="metric-head"><span>销量</span><span class="metric-icon">▦</span></div><strong id="metric-qty">—</strong><div class="metric-foot" id="metric-refund">退款 —</div></article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel trend-panel"><div class="panel-head"><div><h2>营业额趋势</h2><p class="panel-subtitle">按日净营业额，含无销售日期</p></div><div class="legend"><span class="legend-dot"></span>净营业额</div></div><div class="chart-wrap"><svg id="trend-chart" viewBox="0 0 800 280" role="img" aria-label="营业额趋势图"></svg><div class="chart-tooltip" id="chart-tooltip" hidden></div></div></article>
+        <article class="panel quality-panel" id="quality"><div class="panel-head"><div><h2>数据质量</h2><p class="panel-subtitle">本次看板使用的清洗结果</p></div><span class="quality-badge" id="quality-badge">检查中</span></div><div class="quality-score"><div class="score-ring" id="quality-ring"><span id="quality-score">—</span><small>保留率</small></div><div class="quality-copy"><strong id="quality-summary">正在读取…</strong><span id="quality-detail">—</span></div></div><div class="quality-list" id="quality-list"></div><button class="text-button" id="quality-more">查看完整质量报告 <span>→</span></button></article>
+      </section>
+
+      <section class="panel top-products"><div class="panel-head"><div><h2>Top 10 商品</h2><p class="panel-subtitle">按筛选区间净营业额排序</p></div><span class="panel-caption" id="products-caption">—</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>商品</th><th>品类</th><th>销量</th><th>净营业额</th><th>占比</th></tr></thead><tbody id="products-table"><tr><td colspan="6" class="empty-cell">等待数据…</td></tr></tbody></table></div></section>
+      <footer class="footer"><span id="footer-health">—</span><span>数据口径：KB-001 v3 · <button class="text-button" id="open-trace-latest">打开最近 Trace</button></span></footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="chat-modal" hidden><section class="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chat-title"><div class="modal-head"><div><span class="eyebrow">ASSISTANT</span><h2 id="chat-title">智能问答</h2></div><button class="close-button" data-close="chat-modal" aria-label="关闭">×</button></div><div class="chat-messages" id="chat-messages"><div class="chat-bubble assistant">你好，我可以帮你查营业额、门店、商品和制度。试试问：<b>“6 月哪家店营业额最高？”</b></div></div><form class="chat-form" id="chat-form"><input id="chat-input" autocomplete="off" placeholder="输入你想了解的数据…"><button class="primary-button" type="submit">发送 <span>↗</span></button></form><div class="chat-foot"><span id="chat-mode">Mock 模式</span><button class="text-button" id="open-chat-trace" disabled>查看本轮 Trace</button></div></section></div>
+  <div class="modal-backdrop" id="trace-modal" hidden><section class="trace-modal" role="dialog" aria-modal="true" aria-labelledby="trace-title"><div class="modal-head"><div><span class="eyebrow">DEBUG CONSOLE</span><h2 id="trace-title">Trace 调试面板</h2></div><button class="close-button" data-close="trace-modal" aria-label="关闭">×</button></div><div class="trace-summary" id="trace-summary">选择一条问答记录查看完整链路。</div><div class="trace-body" id="trace-body"></div></section></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

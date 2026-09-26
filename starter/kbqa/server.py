@@ -3,23 +3,40 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import date
 from typing import Any, Optional
 
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from pathlib import Path
 from pydantic import BaseModel, Field
 
 from .service import Service
 
 app = FastAPI(title="经营看板 + 问答服务", version="0.9.3")
 _service: Optional[Service] = None
+_service_lock = threading.Lock()
+_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
+@app.get("/", include_in_schema=False)
+def dashboard():
+    """零构建依赖的运营看板入口。"""
+    return FileResponse(_WEB_DIR / "index.html")
+
+
+@app.get("/assets/{asset_path:path}", include_in_schema=False)
+def dashboard_asset(asset_path: str):
+    return FileResponse(_WEB_DIR / "assets" / asset_path)
 
 
 def service() -> Service:
     global _service
     if _service is None:
-        _service = Service()
+        with _service_lock:
+            if _service is None:
+                _service = Service()
     return _service
 
 
@@ -84,6 +101,29 @@ def metrics_daily(
 ):
     bad = _bad_date(start, end)
     return bad or service().metrics_daily(start, end, store_id, product_id)
+
+
+@app.get("/api/metrics/top-products")
+def metrics_top_products(
+    start: str = Query(...),
+    end: str = Query(...),
+    store_id: Optional[str] = None,
+    limit: int = Query(10, ge=1, le=50),
+):
+    bad = _bad_date(start, end)
+    return bad or service().tools.top_products(start, end, store_id, limit)
+
+
+@app.get("/api/meta")
+def meta() -> dict:
+    """前端筛选器需要的门店、商品和数据范围。"""
+    current = service()
+    return {
+        "stores": current.tools.stores(),
+        "products": current.tools.products(),
+        "data_period": current.data_period,
+        "today": current.settings.today.isoformat(),
+    }
 
 
 @app.post("/api/retrieve")

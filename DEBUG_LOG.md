@@ -179,6 +179,15 @@
 - **修复**：本次提交。
 - **回归测试**：`tests/test_cleaning.py::test_query_metrics_values` 等（金额符号聚合的既有断言）。
 
+## #19 排名对象未先判定导致“最高和最低营业额”误走商品排行
+
+- **现象**：提问「8 月最高和最低营业额」时，回答成了 Top 商品；同一句没有出现“门店”或“商品”，原有 `if/elif` 链直接把通用排名词落到了 `top_products`。
+- **假设**：规划器需要先判断排名对象（日期、月份、门店、品类、商品），再选择查询工具；“最高 + 最低”且没有商品对象时，应默认比较门店两端。
+- **验证**：Trace 中原计划为 `kind=top_products`，修复后为 `kind=by_store_extremes`，`target_priority` 首项为 `store_extremes`；HTTP 回归返回 S02 最高、S04 最低。
+- **根因**：`starter/kbqa/planner.py::_choose_kind` 只按命中词逐段分支，没有保留“目标对象优先级”。
+- **修复**：新增 `_rank_targets`，将目标排序写入 Trace；新增 `by_store_extremes` 渲染和工具分支。
+- **回归测试**：`tests/test_chat.py::test_store_extremes_answer_both_ends`，全量 `119 passed`。
+
 ---
 
 ## #19 金额/数量为 Infinity、NaN 会崩（review 第 4、6 条）

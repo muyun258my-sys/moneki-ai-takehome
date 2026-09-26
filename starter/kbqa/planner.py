@@ -59,6 +59,7 @@ class Plan:
             "needs_docs": self.needs_docs,
             "refusal": self.refusal,
             "notes": self.notes,
+            "target_priority": self.slots.get("target_priority", []),
         }
 
 
@@ -200,7 +201,7 @@ class Planner:
             plan.notes.append("问的是 %s 当时的规定，按 effective_from 选当时生效的版本。" % spec.as_of)
 
     def _choose_kind(self, plan: Plan, spec: TimeSpec) -> None:
-        """先判断这是“问数字”还是“问规定”，再细分到具体的取数方式。"""
+        """先确定问题目标，再选择取数工具，避免排名词落到错误对象。"""
         text = plan.standalone
         windows = list(spec.windows)
         if spec.open_ended:
@@ -220,7 +221,8 @@ class Planner:
         asks_policy = E.has_any(text, E.POLICY_WORDS)
         asks_rank = E.has_any(text, E.RANK_WORDS)
         asks_rank_extremes = (
-            E.has_any(text, ("最高和最低", "最高与最低", "最高及最低", "最高、最低", "最高最低"))
+            E.has_any(text, ("最高", "最多", "第一"))
+            and E.has_any(text, E.LOWEST_WORDS)
             and not plan.product_id
         )
         asks_payment = E.has_any(text, E.PAYMENT_WORDS)
@@ -234,6 +236,21 @@ class Planner:
             and bool(self.catalog.find_product(plan.question)[0])
         )
         asks_amount = E.has_any(text, ("多少", "几", "是多少", "有多少")) or asks_rank
+
+        target_priority = self._rank_targets(
+            text,
+            plan,
+            windows,
+            asks_rank,
+            asks_rank_extremes,
+        )
+        plan.slots["target_priority"] = target_priority
+        primary_target = target_priority[0]["target"] if target_priority else None
+        if target_priority:
+            plan.notes.append(
+                "目标排序：%s；先按 %s 选择查询工具。"
+                % (" > ".join(item["target"] for item in target_priority), primary_target)
+            )
 
         asks_business = E.has_any(text, E.BUSINESS_WORDS)
         abnormal = E.is_abnormal(text)
@@ -268,19 +285,23 @@ class Planner:
             plan.kind, plan.intent = "compare", "data"
         elif asks_payment:
             plan.kind, plan.intent = "payment", "data"
-        elif E.has_any(text, E.MONTHLY_WORDS) and len(months_in(plan.window)) > 1:
+        elif primary_target == "month" or (
+            E.has_any(text, E.MONTHLY_WORDS) and len(months_in(plan.window)) > 1
+        ):
             plan.kind, plan.intent = "by_month", "data"
-        elif E.has_any(text, E.WHICH_DAY_WORDS) and plan.window[0] != plan.window[1]:
+        elif primary_target == "day" or (
+            E.has_any(text, E.WHICH_DAY_WORDS) and plan.window[0] != plan.window[1]
+        ):
             plan.kind, plan.intent = "daily", "data"
-        elif asks_rank and E.has_any(text, E.CATEGORY_WORDS):
+        elif primary_target == "category" or (asks_rank and E.has_any(text, E.CATEGORY_WORDS)):
             plan.kind, plan.intent = "category", "data"
-        elif asks_rank_extremes:
+        elif primary_target == "store_extremes" or asks_rank_extremes:
             # 未点名商品时，“最高和最低营业额”默认比较各门店两端。
             plan.kind, plan.intent = "by_store_extremes", "data"
-        elif E.has_any(text, E.STORE_WORDS) and not plan.store_id:
+        elif primary_target == "store" or (E.has_any(text, E.STORE_WORDS) and not plan.store_id):
             # “各门店 7 月营业额分别是多少”没有排名词，但要的就是分店明细。
             plan.kind, plan.intent = "by_store", "data"
-        elif asks_rank:
+        elif primary_target == "product" or asks_rank:
             plan.kind, plan.intent = "top_products", "data"
         elif E.has_any(text, E.DAILY_WORDS):
             plan.kind, plan.intent = "daily", "data"
@@ -311,6 +332,41 @@ class Planner:
         _ = asks_amount
         if spec.first_month:
             plan.notes.append("按“首月”处理：以该商品在数据库里的首个销售日所在自然月为区间。")
+
+    @staticmethod
+    def _rank_targets(
+        text: str,
+        plan: Plan,
+        windows: list[tuple[str, str]],
+        asks_rank: bool,
+        asks_rank_extremes: bool,
+    ) -> list[dict]:
+        """给排名对象排序，首项决定后续使用的查询工具。"""
+        candidates: list[dict] = []
+
+        def add(target: str, score: int, reason: str) -> None:
+            candidates.append({"target": target, "score": score, "reason": reason})
+
+        if E.has_any(text, E.WHICH_DAY_WORDS) and windows[0][0] != windows[0][1]:
+            add("day", 130, "问题明确询问哪一天")
+        if len(windows) > 1 and E.has_any(text, E.MONTHLY_WORDS):
+            add("month", 125, "问题明确询问月份拆分")
+        explicit_product_target = E.has_any(text, E.PRODUCT_RANK_WORDS) or E.has_any(
+            text, E.SALES_RANK_WORDS
+        )
+        explicit_category_target = E.has_any(text, E.CATEGORY_WORDS)
+        explicit_store_target = not plan.store_id and E.has_any(text, E.STORE_WORDS)
+        if asks_rank_extremes and not explicit_product_target and not explicit_category_target:
+            add("store_extremes", 140, "同时出现最高与最低，默认比较门店两端")
+        if explicit_category_target:
+            add("category", 135, "出现品类范围词")
+        if explicit_product_target:
+            add("product", 130, "出现商品或卖得好坏词")
+        if explicit_store_target:
+            add("store", 125, "出现门店范围词")
+        if asks_rank and not candidates:
+            add("product", 50, "未指明对象，沿用商品排行默认值")
+        return sorted(candidates, key=lambda item: item["score"], reverse=True)
 
     def _check_period(self, plan: Plan, spec: TimeSpec) -> None:
         """问到数据区间之外的时间，如实说没有数据，不猜。"""

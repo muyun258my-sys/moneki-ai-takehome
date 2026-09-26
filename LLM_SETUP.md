@@ -6,29 +6,34 @@
 
 ## 2. 配置从哪里读
 
-| 环境变量 | 默认值 | 作用 |
+| 配置项 | `.env` 示例值 | 作用 |
 | --- | --- | --- |
-| `LLM_BASE_URL` | 空 | OpenAI 兼容服务地址，不含 `/chat/completions` |
+| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容服务地址，不含 `/chat/completions` |
 | `LLM_API_KEY` | 空 | Bearer API Key |
-| `LLM_MODEL` | 空 | 模型名，例如 `deepseek-flash` |
+| `LLM_MODEL` | `deepseek-flash` | 模型名 |
 | `LLM_TIMEOUT` | `120` | 单次模型调用超时秒数 |
 | `CHAT_BUDGET` | `150` | 单轮问答总预算秒数 |
 
-配置由 `starter/kbqa/config.py` 启动时读取；Key 不写入仓库，也不会在启动时主动校验或请求模型列表。
+配置由 `starter/kbqa/config.py` 启动时从 `starter/.env` 读取；同名环境变量优先，便于评测代理临时覆盖。`starter/.env` 已被 Git 忽略，可提交的模板是 `starter/.env.example`。服务不会在启动时校验 Key 或请求模型列表。
 
 ## 3. 怎么换成你们的
 
-PowerShell 示例：
+编辑本机 `starter/.env`，填入评审 Key：
+
+```dotenv
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=替换成评审 Key
+LLM_MODEL=deepseek-flash
+```
+
+然后重启服务：
 
 ```powershell
-$env:LLM_BASE_URL = "https://api.deepseek.com"
-$env:LLM_API_KEY = "替换成评审 Key"
-$env:LLM_MODEL = "deepseek-flash"
 cd starter
 python -m uvicorn kbqa.server:app --host 127.0.0.1 --port 8000
 ```
 
-只改环境变量并重启服务即可，不需要重新清洗数据或重建知识库索引。只有替换 `data/` 或 `knowledge_base/` 时才执行 `python -m kbqa.rebuild`（或 `make rebuild`）。
+只改 `.env` 并重启服务即可，不需要重新清洗数据或重建知识库索引。也可用同名环境变量覆盖 `.env` 切换厂商、Key 和模型。只有替换 `data/` 或 `knowledge_base/` 时才执行 `python -m kbqa.rebuild`（或 `make rebuild`）。
 
 ## 4. 怎么看到发给模型的请求
 
@@ -50,7 +55,7 @@ python eval/llm_gateway.py proxy --upstream https://api.deepseek.com --log llm_t
 
 ## 6. 依赖与安装
 
-只需要 Python 3.12 和 `fastapi`、`uvicorn`、`httpx`、`pytest`。模型不下载，首次启动耗时主要是清洗 SQLite 数据和建立轻量文本索引；无 Key 模式不需要网络。
+只需要 Python 3.12 和 `fastapi`、`uvicorn`、`httpx`、`python-dotenv`、`pytest`。模型不下载，首次启动耗时主要是清洗 SQLite 数据和建立轻量文本索引；无 Key 模式不需要网络。
 
 ## 7. 自测结果
 

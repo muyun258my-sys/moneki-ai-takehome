@@ -54,5 +54,6 @@ make rebuild DATA_DIR=/path/to/data KB_DIR=/path/to/knowledge_base
 
 配了 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 就走模型，没配就走本地模板回答。
 没有 Key 时服务照常启动，`/api/chat` 不会 500。
+在本机 `starter/.env` 填写这三项即可；环境变量优先于 `.env`。模板见 `.env.example`，真实 Key 不要提交。
 
 交接说明见 `HANDOVER.md`。

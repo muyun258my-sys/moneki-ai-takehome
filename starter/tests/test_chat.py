@@ -12,6 +12,7 @@ def chat(tmp_path_factory):
     os.environ["VAR_DIR"] = str(tmp_path_factory.mktemp("var"))
     for key in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
         os.environ.pop(key, None)
+    os.environ["LLM_API_KEY"] = ""
     from kbqa.service import Service
 
     return Service()

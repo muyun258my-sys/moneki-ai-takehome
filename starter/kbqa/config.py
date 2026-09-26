@@ -1,4 +1,4 @@
-"""配置：路径、今天、大模型三件套，全部从环境变量读。"""
+"""配置：环境变量优先，模型配置也可从 starter/.env 读取。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+
+from dotenv import dotenv_values
 
 #: 契约规定：系统的“今天”固定为 2026-09-01。
 #: 允许用环境变量覆盖，只为测试留一个口子，默认值就是契约值。
@@ -62,17 +64,23 @@ class Settings:
 
 def load_settings() -> Settings:
     workspace = _default_workspace()
+    file_config = dotenv_values(PROJECT_DIR / ".env")
+
+    def llm_value(name: str, default: str = "") -> str:
+        value = os.environ.get(name, file_config.get(name))
+        return default if value is None else str(value).strip()
+
     return Settings(
         data_dir=_path_from_env("DATA_DIR", workspace / "data"),
         kb_dir=_path_from_env("KB_DIR", workspace / "knowledge_base"),
         var_dir=_path_from_env("VAR_DIR", PROJECT_DIR / "var"),
         today=date.fromisoformat(os.environ.get("TODAY", DEFAULT_TODAY)),
         # 地址原样使用：不补 /v1，不截路径（契约 §7.2）。
-        llm_base_url=os.environ.get("LLM_BASE_URL", "").strip().rstrip("/"),
-        llm_api_key=os.environ.get("LLM_API_KEY", "").strip(),
-        llm_model=os.environ.get("LLM_MODEL", "").strip(),
+        llm_base_url=llm_value("LLM_BASE_URL").rstrip("/"),
+        llm_api_key=llm_value("LLM_API_KEY"),
+        llm_model=llm_value("LLM_MODEL"),
         # 契约 §7.3：单次模型调用超时不小于 120 秒。
-        llm_timeout=float(os.environ.get("LLM_TIMEOUT", "120")),
+        llm_timeout=float(llm_value("LLM_TIMEOUT", "120")),
         # 契约 §7.3：/api/chat 整体在 180 秒内返回，这里留出余量。
-        chat_budget=float(os.environ.get("CHAT_BUDGET", "150")),
+        chat_budget=float(llm_value("CHAT_BUDGET", "150")),
     )

@@ -1,7 +1,7 @@
 """Chat Completions 客户端，OpenAI 格式，目标是 DeepSeek 官方 API。
 
 只 POST {LLM_BASE_URL}/chat/completions，地址原样拼接，不补 /v1。
-配置只从 LLM_BASE_URL、LLM_API_KEY、LLM_MODEL 三个环境变量读。
+配置由 config.py 从环境变量或 starter/.env 读取。
 空正文、异常 finish_reason、错误码、超时都抛成带原因的异常。
 """
 

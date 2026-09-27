@@ -81,3 +81,12 @@ def test_live_trace_records_tool_result():
     assert tool["detail"] == {"tool": "query_metrics", "params": {},
                               "result": {"net_revenue": 12}}
     assert tool["took_ms"] >= 0
+
+
+def test_live_prompt_repeats_current_date_context():
+    engine = LiveEngine(
+        None, None, lambda name, params: {}, "2026-09-01",
+        {"start": "2026-05-01", "end": "2026-08-31"},
+    )
+    messages = engine._initial_messages(Plan("目前门店几点开门", "目前门店几点开门", "门店几点开门"), [])
+    assert "今天是 2026-09-01" in messages[-1]["content"]

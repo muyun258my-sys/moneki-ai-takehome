@@ -128,6 +128,7 @@ class LiveEngine:
         question = plan.question
         if plan.standalone and plan.standalone != plan.question:
             question += "\n（这是一句追问，完整问题是：%s）" % plan.standalone
+        question += "\n（系统日期口径：今天是 %s；‘目前’、‘现在’、‘最近’均按这一天理解。）" % self.today
         messages.append({"role": "user", "content": question})
         return messages
 

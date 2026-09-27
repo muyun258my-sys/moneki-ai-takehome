@@ -194,7 +194,11 @@ class Service:
             )
 
     def _run_engine(self, plan, trace: Trace, history: list[dict]) -> Answer:
-        if not self.settings.live or plan.intent == "refusal" or plan.kind == "top_products":
+        if (
+            not self.settings.live
+            or plan.intent == "refusal"
+            or plan.kind in ("top_products", "store_hours")
+        ):
             started = time.perf_counter()
             answer = self.answerer.answer(plan, trace)
             step = "answer_mock" if not self.settings.live else "answer_deterministic"

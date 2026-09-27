@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import date
 from typing import Optional
@@ -73,6 +74,124 @@ class Answerer(HybridAnswers):
         )
         product = self.catalog.product_name(plan.product_id) if plan.product_id else ""
         return render.scope_label(window, store, product)
+
+    def _store_hours_rows(self) -> tuple[str, list[dict]]:
+        """从知识库里的门店营业时间表读取门店、名称和标准时段。"""
+        groups: list[tuple[str, list[dict]]] = []
+        for doc_id in self.retriever.index.docs_meta:
+            for chunk in self.retriever.index.chunks_of(doc_id):
+                headers = [str(cell).strip() for cell in chunk.table_header]
+                lowered = [cell.lower() for cell in headers]
+                id_index = next(
+                    (i for i, cell in enumerate(lowered) if "门店编号" in cell or cell in {"store_id", "store id"}),
+                    None,
+                )
+                name_index = next(
+                    (i for i, cell in enumerate(lowered) if "门店名称" in cell or cell in {"name", "store name"}),
+                    None,
+                )
+                hours_index = next(
+                    (i for i, cell in enumerate(lowered) if "营业时间" in cell or "opening hours" in cell),
+                    None,
+                )
+                if id_index is None or name_index is None or hours_index is None:
+                    continue
+                rows: list[dict] = []
+                for unit in self.facts.units(doc_id):
+                    if unit.kind != "table" or unit.header != headers:
+                        continue
+                    cells = [cell.strip() for cell in unit.text.strip().strip("|").split("|")]
+                    if max(id_index, name_index, hours_index) >= len(cells):
+                        continue
+                    hours = cells[hours_index]
+                    if not re.search(r"\d{1,2}\s*[:：]\s*\d{2}", hours):
+                        continue
+                    rows.append(
+                        {
+                            "doc_id": doc_id,
+                            "unit": unit,
+                            "store_id": cells[id_index],
+                            "store_name": cells[name_index],
+                            "hours": hours,
+                        }
+                    )
+                if rows:
+                    groups.append((doc_id, rows))
+        if not groups:
+            return "", []
+        # 优先选择一次列出多家门店的总表，避免把单店档案表误当成总表。
+        return max(groups, key=lambda item: len(item[1]))
+
+    def _current_hours_updates(self, plan: Plan, table_doc_id: str) -> list[dict]:
+        """找出截至问题所指日期仍有效的营业时间调整通知。"""
+        as_of = (plan.as_of or self.today).isoformat()
+        updates: list[dict] = []
+        for doc_id, meta in self.retriever.index.docs_meta.items():
+            if doc_id == table_doc_id:
+                continue
+            effective = meta.get("effective_from") or ""
+            if effective and effective > as_of:
+                continue
+            title = str(meta.get("title") or "")
+            if "通知" not in str(meta.get("type") or "") and "通知" not in title:
+                continue
+            if plan.store_id and meta.get("stores") and plan.store_id not in meta["stores"]:
+                continue
+            text = self.retriever.index.texts.get(doc_id, "")
+            if not re.search(
+                r"(?:营业时间.{0,24}(?:调整|变更)|(?:调整|变更|延长|缩短).{0,24}营业时间)",
+                text,
+                re.S,
+            ):
+                continue
+            candidates = [
+                unit
+                for unit in self.facts.units(doc_id)
+                if "营业时间" in unit.text
+                and re.search(r"\d{1,2}\s*[:：]\s*\d{2}", unit.text)
+            ]
+            if candidates:
+                updates.append({"doc_id": doc_id, "meta": meta, "unit": candidates[0]})
+        updates.sort(key=lambda item: item["meta"].get("effective_from") or "", reverse=True)
+        return updates
+
+    def _answer_store_hours(self, plan: Plan, trace=None) -> Answer:
+        # 保留标准检索记录，答案再从结构化表格和有效通知中取证。
+        self._search(plan, trace=trace)
+        table_doc_id, rows = self._store_hours_rows()
+        if not rows:
+            return self._answer_doc(plan, trace)
+        if plan.store_id:
+            rows = [row for row in rows if row["store_id"].upper() == plan.store_id.upper()]
+        if not rows:
+            return Answer(
+                answer="知识库里没有找到这家门店的营业时间，我不能编。",
+                answer_type="refusal",
+            )
+
+        as_of = (plan.as_of or self.today).isoformat()
+        lines = ["按系统日期 %s（‘目前’）的现行口径：" % as_of]
+        if not plan.store_id:
+            lines.append("标准营业时间（%s）：" % table_doc_id)
+        for row in rows:
+            lines.append("- %s %s：%s" % (row["store_id"], row["store_name"], row["hours"]))
+        citations = []
+        for row in rows:
+            citation = self.facts.cite(row["doc_id"], row["unit"].text)
+            if citation:
+                citations.append(citation)
+
+        updates = self._current_hours_updates(plan, table_doc_id)
+        if updates:
+            lines.append("当前仍有效的调整：")
+            for update in updates[:3]:
+                unit = update["unit"]
+                doc_id = update["doc_id"]
+                lines.append("- %s（%s）" % (unit.text, doc_id))
+                citation = self.facts.cite(doc_id, unit.text)
+                if citation:
+                    citations.append(citation)
+        return Answer(answer="\n".join(lines), answer_type="doc", citations=citations)
 
     def _doc_block(self, plan: Plan, result: SearchResult, limit: int = 2) -> tuple[str, list[dict], float]:
         """从检索结果里取事实：返回（正文、引用、置信度）。
@@ -227,6 +346,8 @@ class Answerer(HybridAnswers):
     def answer(self, plan: Plan, trace=None) -> Answer:
         if plan.intent in ("refusal", "clarify"):
             return Answer(answer=plan.refusal or "无法回答这个问题。", answer_type=plan.intent)
+        if plan.kind == "store_hours":
+            return self._answer_store_hours(plan, trace)
         if plan.kind in ("target", "price", "anomaly"):
             return getattr(self, "_answer_%s" % plan.kind)(plan, trace)
         if plan.intent == "doc":

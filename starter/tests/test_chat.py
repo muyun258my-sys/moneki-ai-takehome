@@ -51,6 +51,16 @@ def test_doc_citation(chat):
     assert any(citation["doc_id"] == "KB-013" for citation in result["citations"])
 
 
+def test_current_store_hours_use_today_and_current_notice(chat):
+    result = chat.chat("current-hours", "目前各门店的营业时间分别是几点")
+    assert result["answer_type"] == "doc"
+    assert "2026-09-01" in result["answer"]
+    assert all(store in result["answer"] for store in ("S01", "S02", "S03", "S04", "S05"))
+    assert "23:00" in result["answer"]
+    cited = {citation["doc_id"] for citation in result["citations"]}
+    assert {"KB-042", "KB-062"} <= cited
+
+
 def test_hybrid_target(chat):
     result = chat.chat("d", "冷萃乌龙茶上市第一个月的销量达标了吗？")
     assert result["answer_type"] == "hybrid"

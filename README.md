@@ -1,217 +1,117 @@
-# Moneki.ai 全栈开发工程师（AI 产品）实习：实操作业
+# Moneki.ai 经营看板与智能问答
 
-## 时间
+这是一个同时查询 POS 数据和公司知识库的运营工具：看板提供经营指标，问答接口支持数据问题、制度问题以及两者结合的问题，并保留完整 Trace 供调试和验收。
 
-**72 小时**，从收到本作业包起算；以我们发给你的消息里写明的截止时间（北京时间）为准。
-到点交，做到哪算哪。
+## 快速开始
 
-## 背景
+项目要求 Python 3.12。以下命令从仓库根目录执行。
 
-这份作业是一个模拟场景：一家有 5 家门店的连锁餐饮品牌，下文的“公司”都指它。
-公司的运营每天要回答两类问题：数字是多少（查数据库），以及为什么、按规定该怎么办（查公司文档）。
-真正有用的问题往往两样都要：“S03 六月第二周营业额为什么这么低？”
+### Windows PowerShell
 
-你要做的是一个经营看板，加一个能同时查数据库和公司文档的 AI 助手。
-AI 助手的检索部分不用从零写：你接手的是前同事留下的一个服务，能跑，但经常答错。
+```powershell
+cd starter
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m kbqa.rebuild
+.venv\Scripts\python -m uvicorn kbqa.server:app --host 127.0.0.1 --port 8000
+```
 
-系统的“今天”固定为 2026-09-01，所有“现在”“最近”都以这一天为准。
+打开 <http://127.0.0.1:8000/>。如果系统已有虚拟环境，也可以直接使用 `make rebuild` 和 `make run`。
 
-## 你拿到了什么
-
-| 目录 | 内容 |
-|---|---|
-| `data/` | POS 导出的数据库 `pos.db`（SQLite），以及同内容的 `sales.csv`、`stores.csv`、`products.csv` |
-| `knowledge_base/` | 公司内部文档 35 份：口径手册、制度、通知、门店档案、店长周报、参考表，格式有 `.md`、`.txt`、`.html` |
-| `starter/` | 前同事留下的 RAG 问答服务（Python），附交接文档 |
-| `eval/` | 公开题库 `public_questions.jsonl`、评测脚本 `run_eval.py`、大模型接入预检与代理工具 `llm_gateway.py` |
-| `docs/API_CONTRACT.md` | **必须遵守的 API 契约**，我们用同一个脚本评测所有人 |
-
-`sales` 表（约 1.8 万行）：
-
-| order_id | date | store_id | product_id | qty | amount | payment |
-|---|---|---|---|---|---|---|
-| 订单号 | 日期 | 门店外键 | 商品外键 | 数量 | 金额 | 支付方式 |
-
-`stores`：store_id / store_name / category / district。
-`products`：product_id / product_name / product_category / unit_price。
-
-> 注意：数据按真实 POS 导出的样子生成，有重复、缺失、格式不一和脏外键。
-> 怎么清洗、营业额怎么算、退款算不算，公司有成文口径，就在知识库里。
-> 知识库也和真实情况一样：有过期的旧版本，有互相矛盾的说法，有估算的数字，不是每份文档都可信。
-
-## 开始之前：把 starter 和评测跑起来
-
-需要 Python 3.12，开两个终端。
-
-终端 A，从作业包根目录（也就是这份 README 所在的目录）开始：
+### Linux/macOS
 
 ```bash
 cd starter
 python3.12 -m venv .venv
-.venv/bin/pip install -r requirements.txt   # 装了 uv 的，也可以用 make setup 代替这两行
-make rebuild                                  # 从 ../data 和 ../knowledge_base 生成清洗表和检索索引
-make run                                      # 服务起在 http://localhost:8000
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m kbqa.rebuild
+.venv/bin/python -m uvicorn kbqa.server:app --host 127.0.0.1 --port 8000
 ```
 
-终端 B，在作业包根目录（也就是这份 README 所在的目录）：
+`make setup` 是使用 `uv` 的等价安装方式；`make test` 运行 starter 测试。
+
+## 更换数据或知识库
+
+评测可以替换 `data/` 和 `knowledge_base/`。设置路径后执行重建命令，清洗数据库和 BM25 索引都会重新生成：
+
+```powershell
+cd starter
+$env:DATA_DIR = "C:\path\to\data"
+$env:KB_DIR = "C:\path\to\knowledge_base"
+$env:VAR_DIR = "C:\path\to\var"
+.venv\Scripts\python -m kbqa.rebuild
+.venv\Scripts\python -m uvicorn kbqa.server:app --host 127.0.0.1 --port 8000
+```
+
+Linux/macOS 使用同样的环境变量，并把 Python 路径替换为 `.venv/bin/python`。也可以直接使用：
 
 ```bash
-python3 eval/run_eval.py --base-url http://localhost:8000 --questions eval/public_questions.jsonl
+make rebuild DATA_DIR=/path/to/data KB_DIR=/path/to/knowledge_base VAR_DIR=/path/to/var
 ```
 
-starter 本来就有问题，第一次跑分很低是正常的。
-评测脚本只依赖 Python 标准库，更多用法见 `eval/README.md`。
+知识库索引缓存包含所有文件内容哈希；文件增删改后会自动失效，不依赖固定文档名或固定答案。门店、商品和金额均从当前输入数据读取，不写死样例数据。
 
-任务分四关。
-请按顺序做，一关做扎实了再进下一关。
+## 架构
 
----
+```mermaid
+flowchart LR
+    A[data/pos.db] --> B[清洗 cleaning.py]
+    B --> C[var/clean.db]
+    C --> D[DataTools 指标查询]
+    E[knowledge_base 文档] --> F[loader / chunker / tokenizer]
+    F --> G[BM25 索引与内容哈希缓存]
+    G --> H[Retriever / DocFacts]
+    D --> I[Planner / Answerer]
+    H --> I
+    I --> J[本地模板或 OpenAI 兼容 LLM]
+    J --> K[FastAPI API 与 Trace]
+    K --> L[原生 HTML/CSS/JS 看板]
+```
 
-## 第一关：数据看板（基础）
+请求先由 Planner 识别意图、时间和实体，再分别查询清洗后的 SQLite 数据和当前有效的知识库片段。Answerer 只使用工具结果组织回答，API 同时返回数据证据、文档引用和 trace_id，前端据此展示答案与调试过程。
 
-1. 后端 API：按契约实现 `/api/metrics/summary` 和 `/api/metrics/daily`，口径以知识库里的现行口径手册为准。
-2. 前端：日期与门店筛选 + 营业额趋势图 + Top 10 商品表 + 一块“数据质量”信息（清洗掉了多少行、各因为什么）。
-3. `README.md`：3 步内跑起来。
+## 技术选型理由
 
-## 第二关：接手并修好 RAG 服务（核心）
+- **Python 3.12 + FastAPI/Uvicorn**：依赖少、启动快，适合评测脚本直接调用；类型和异步 HTTP 接口也便于扩展。
+- **SQLite**：原始数据本身是 SQLite，清洗后仍可用 SQL 做可复核的聚合，避免把指标计算放在模型里。
+- **纯 Python BM25**：知识库规模小，不需要部署向量数据库；词项得分、过滤原因和缓存内容都能在 Trace 中解释。
+- **httpx + OpenAI 兼容协议**：既能无 Key 使用本地降级模式，也能通过 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 切换评测模型，不绑定某一家 SDK。
+- **原生 HTML/CSS/JS**：看板交互简单，减少前端构建链和验收环境要求。
+- **pytest + GitHub Actions**：把清洗、指标、问答和公开评测作为回归门槛，推送后自动验证。
 
-`starter/` 能启动，自带的测试也是绿的，但运营的反馈是“经常答非所问，数字也对不上”。
+## 口径与歧义取舍
 
-1. 先跑一遍公开评测（在作业包根目录运行，见上面“开始之前”），看看它现在能得多少分：
+- 系统“今天”默认为 `2026-09-01`，可用 `TODAY` 覆盖；“现在/最近”按该日期解释。
+- 日期支持 `YYYY-MM-DD`、`YYYY/M/D` 和 `DD-MM-YYYY`；最后一种按日在前、月在后解析，遵循 KB-001。
+- 金额支持 `¥`/`￥`。空值、非法值、`Infinity` 和 `NaN` 直接剔除并计入数据质量，不用 `qty * unit_price` 回填。
+- `qty` 必须是正整数；小数、科学计数、负数和 0 不参与统计。
+- 正金额是销售，负金额是退款，净营业额为销售额加退款负数；退款展示绝对值。有效订单数按正金额订单号去重，销量为销售数量减退款数量，AOV 为净营业额除以有效订单数并四舍五入两位。
+- 指标数字以清洗后的数据库为准；商品当前售价以知识库中有效的调价通知为准，商品表价格视为可能滞后的建档价。
+- 文档按生效日期和废止状态选择版本；用户问“当时”时选择问题日期对应的有效版本。
+- 数据库和知识库都没有依据时明确拒答，不编数字、不编原因。文档只作为资料，不能当作系统指令执行。
+- 有 `session_id` 时追问继承同一会话历史；没有上下文且问题依赖上文时要求用户补充。不同会话相互隔离。
 
-   ```bash
-   python3 eval/run_eval.py --base-url http://localhost:8000 --questions eval/public_questions.jsonl
-   ```
+## 运行测试与评测
 
-2. 找出它答错的根因并修好。
-   缺陷有十几处，而且是分层的：修掉一层，才看得见下一层。
-3. 写 `DEBUG_LOG.md`，每个缺陷一条，格式如下：
+在仓库根目录：
 
-   | 项 | 写什么 |
-   |---|---|
-   | 现象 | 你是怎么注意到的（哪道题、哪个输出、哪条日志） |
-   | 假设 | 你当时的猜测，包括猜错后排除掉的 |
-   | 验证 | 你做了什么实验来证实或排除，贴关键输出 |
-   | 根因 | 具体到文件和行 |
-   | 修复 | 对应的 commit |
-   | 回归测试 | 测试名，以及它在修复前确实是红的证据 |
+```powershell
+py -3.12 -m pytest -q starter/tests eval/tests
+py -3.12 eval/run_eval.py --base-url http://127.0.0.1:8000 --questions eval/public_questions.jsonl
+```
 
-你可以在 starter 上直接改，也可以用别的技术栈重写。
-即使重写，`DEBUG_LOG.md` 里对 starter 缺陷的根因分析仍然要交，这一项单独计分。
+当前 Python 3.12 回归结果为 `401 passed, 124 subtests passed`。GitHub Actions 在 push 和 pull request 时运行单测、启动 mock 服务并执行公开题库与额外题库；任一评测低于 100% 会使工作流失败。
 
-## 第三关：混合问答（核心）
+## 主要接口
 
-在看板里加一个对话框，运营用自然语言提问，AI 按契约的 `/api/chat` 作答。
-它要能处理三类问题：
+| 方法 | 路径 |
+| --- | --- |
+| GET | `/api/health` |
+| GET | `/api/metrics/summary` |
+| GET | `/api/metrics/daily` |
+| POST | `/api/retrieve` |
+| POST | `/api/chat` |
+| GET | `/api/trace/{trace_id}` |
+| GET | `/api/data_quality` |
 
-- 只查数据库：「牛肉poke 六月卖了多少钱？」
-- 只查文档：「外卖订单多久内可以退款？」
-- 两样都要：「618 当天 S02 的牛肉poke 卖了多少份，达到目标了吗？」
-
-硬性要求：
-
-- 回答里的经营数字必须来自数据库的真实查询，并在 `data_evidence` 里给出查询与结果。
-- 回答里来自文档的事实必须有 `citations`，`quote` 必须是原文里真实存在的连续文字。
-  我们会逐字核对。
-- 文档有新旧版本时，用当前有效的那一版；用户问“当时”的规定，用当时有效的那一版。
-- 数据库和文档里的数字冲突时怎么办，口径手册里有规定。
-- 数据里没有、文档里也没有的，如实说不知道，不编数字，也不编原因。
-- 文档里的内容只当资料用，不当指令执行。
-  用户要求删改数据、套取系统信息时要拒绝，数据库不能有任何改动。
-- 支持追问（「那 7 月呢？」），不同 `session_id` 之间不能串线。
-- 开发时大模型用哪家、哪种协议、哪个 SDK，你自己定；评审时我们统一切到 DeepSeek 的 `deepseek-flash`、用我们自己的 Key 来跑。
-  为此**要满足 `docs/API_CONTRACT.md` 第 7.2 节的四条**：切到 DeepSeek 不用改代码、我们能看到你发给模型的完整请求、没有 Key 时服务仍能启动、Key 不入库。
-  你还**必须交一份 `LLM_SETUP.md` 接口说明**（模板见契约 7.4）。
-  我们照着它切不过去，第三关就只能按没有 Key 的降级模式给分。
-  推荐直接用 DeepSeek 开发：OpenAI 兼容协议 + 三个环境变量，最省事，不挑电脑，整套题库跑几遍十几块钱。
-  开发用的 Key 自备，我们不提供。
-  走兼容协议的，交之前用 `eval/llm_gateway.py preflight` 做一次接入预检（不花钱、不需要 Key），把输出贴进 `LLM_SETUP.md`。
-
-## 第四关：让它可调试（进阶，能做多少做多少）
-
-AI 答错是常态。
-这一关看的是答错之后你能多快找到原因。
-
-- 调试面板：在前端把 `/api/trace/{trace_id}` 可视化，展示这次回答检索到了哪些片段、各自多少分、哪些被过滤了、执行了什么查询、最终提示词是什么、每一步花了多久。
-- 评测即回归：把评测脚本接进你的测试或 CI，每次改动都能看到分数涨了还是跌了。
-- 你自己的评测题：公开题库之外，你觉得还该测什么，补进去。
-- 流式输出、图表联动、部署上线、异常预警……你觉得有价值的都可以做。
-
----
-
-## 我们怎么评
-
-1. 按你的 README 在干净环境里跑起来，先不配置任何 Key。
-2. 按你的 `LLM_SETUP.md` 把模型切到 DeepSeek `deepseek-flash`、换上我们自己的 Key，跑一遍公开题库，和你提交的 `EVAL_REPORT.md` 对照。
-3. 把 `data/` 和 `knowledge_base/` 换成我们手里的另一份（结构相同，数字不同，文档有增有改），执行你的重建命令，再用隐藏题库跑一遍。
-   隐藏题库里有公开题的换一种问法的版本，也有全新的题。
-   所以：不要把任何数字、答案、文档内容写死；索引必须能跟着知识库变。
-4. 读你的 `DEBUG_LOG.md`、`AI_USAGE.md` 和提交历史。
-5. 通过的同学进入现场调试环节（见下）。
-
-## 必交文件
-
-下面的说明文件都放在你仓库的根目录。
-
-1. 代码托管在 GitHub，完成后把仓库链接发给我们。
-   默认 public；如果你希望 private，先告诉我们，我们给你一个 GitHub 账号，加为协作者即可。
-2. `README.md`：跑起来的步骤（含重建命令）+ 架构图（手画拍照都行）+ 选型理由 + 你对口径和歧义的取舍。
-3. `DEBUG_LOG.md`：见第二关。
-4. `EVAL_REPORT.md`：starter 的初始得分和你最终版本的得分，都是跑公开题库的输出，让我们看到前后差距。
-   最终得分请用你自己的大模型跑（也就是配置了 Key 的状态）；实在没有 Key，就跑无 Key 的降级模式，并在报告里写明。
-   每一次得分都附上：运行命令、代码的 commit、用的模型与关键配置（不要写 Key），以及是否配置了 Key。
-5. `LLM_SETUP.md`：接口说明，模板见 `docs/API_CONTRACT.md` 第 7.4 节。
-6. `AI_USAGE.md`：
-   - 用了哪些 AI 工具，怎么拆任务（给一个真实 prompt 例子）。
-   - AI 给过你哪些错误的诊断或错误的修复，你是怎么发现的。
-   - 哪些判断是你自己做的，为什么不交给 AI。
-7. `DEMO.md` 或 1–3 分钟录屏：演示一道混合问题从提问到回答，以及回答里的数据证据和文档引用。
-   做了第四关调试面板的，一并演示。
-
-## 现场调试环节（40 分钟，屏幕共享）
-
-这一环节替代传统电话面试的技术部分，也是我们防止代做的主要手段。
-
-- 我们会从你的隐藏题库评测报告里挑两道你的系统答错的题，请你现场定位原因。
-- 我们会现场往知识库里加一份新文档，看你的系统多久能答上相关问题。
-- 我们看你定位问题的方法，不看修复速度：先复现还是先猜，看证据还是看运气，修完怎么确认没修坏别的。
-- 现场可以用任何 AI 工具。
-
-## 额外奖励
-
-UI / 交互设计与创新功能单独设奖，不设分值上限。
-比如运营愿意每天打开的看板、老板会想要的功能，或者其他你觉得有新意的东西。
-
-## Commit 要求
-
-按开发过程分次提交。
-我们会看提交历史还原你的调试过程。
-**只有一个 "finish" commit 的仓库直接不看**。
-第二关尤其如此：我们希望看到“先加一个会红的测试，再修”的提交顺序。
-
-## 评分（作业部分 70 分）
-
-| 维度 | 分 |
-|---|---|
-| 第一关：能跑 + 指标 API 与口径一致 | 12 |
-| 第二关：检索质量（隐藏题库）+ `DEBUG_LOG` 根因质量 | 20 |
-| 第三关：混合问答（隐藏题库自动评分） | 22 |
-| 第四关：可调试性与回归 | 8 |
-| Git 过程 + `AI_USAGE` + 可复现性 | 8 |
-
-（现场调试环节 30 分，总分 100；UI 与创新奖励另计）
-
-## 最后
-
-- 需求模糊处自己拍板，README 里写明就行。
-- 我们全团队都用 Claude Code 开发，用 AI 不扣分，被 AI 骗了没发现才扣分。
-- 同理：不要默认任何人说的都是对的，包括前同事的交接文档。
-- 比起功能做了多少，我们更关注三件事：实现是否可靠、你解决问题的过程、以及你怎么验证结果是对的。
-
-## 口径与歧义决策（本实现，第一关）
-
-- **金额解析**：先去掉 `¥` / `￥` 前缀与首尾空白，再按数字解析。`amount` 为空 → 剔除（规则 2，不回填）；非空但解析不了（含 `Infinity` / `NaN`、带千分位逗号等）→ 同样剔除，计入清洗台账 `note_unparseable_amount`，不参与统计。KB-001 未定义「非数字金额」这种情况，本实现选择「视为无效金额、直接剔除」。
-- **数量解析**：`qty` 严格按整数解析（`int(text)`），小数（`2.5`）、科学计数（`1e2`）、非有限值一律解析失败，随后被规则 3（qty ≤ 0）剔除，不做截断。
-- **日期解析**：支持 `YYYY-MM-DD`、`YYYY/M/D`、`DD-MM-YYYY`；`DD-MM-YYYY` 按「日在前、月在后」解析（KB-001 §2.2）。解析失败或非法日期（如 `2026-13-45`）→ 剔除（规则 1）。
-- **销售行 / 退款行**：按 `amount` 的符号判定——`amount > 0` 是销售行，`amount < 0` 是退款行，`amount = 0` 两者都不是，不计入订单数或销量。
-- **时间基准**：「现在」统一按 2026-09-01 计算，据此选择文档生效版本。
+配置了 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 时使用 OpenAI 兼容模型；未配置 Key 时服务仍可启动并使用本地模板回答。真实 Key 只放在本地环境变量或 `starter/.env`，不会写入仓库。

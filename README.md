@@ -68,6 +68,10 @@ flowchart LR
     K --> L[原生 HTML/CSS/JS 看板]
 ```
 
+可直接查看的架构图：
+
+![Moneki.ai 系统架构图](docs/architecture.svg)
+
 请求先由 Planner 识别意图、时间和实体，再分别查询清洗后的 SQLite 数据和当前有效的知识库片段。Answerer 只使用工具结果组织回答，API 同时返回数据证据、文档引用和 trace_id，前端据此展示答案与调试过程。
 
 ## 技术选型理由

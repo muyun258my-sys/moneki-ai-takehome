@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
+  <title id="title">Moneki.ai architecture</title>
+  <desc id="desc">Data and knowledge base flow through cleaning, retrieval, planning, answer generation, API, and frontend.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#496a8f"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#172b4d" flood-opacity="0.16"/>
+    </filter>
+    <style>
+      .box { stroke: #496a8f; stroke-width: 2; rx: 12; filter: url(#shadow); }
+      .data { fill: #e8f3ff; }
+      .service { fill: #eaf7f0; }
+      .logic { fill: #fff3d8; }
+      .output { fill: #f3eafd; }
+      .title { font: 700 30px Arial, sans-serif; fill: #172b4d; }
+      .label { font: 700 19px Arial, sans-serif; fill: #172b4d; text-anchor: middle; }
+      .sub { font: 15px Arial, sans-serif; fill: #40556f; text-anchor: middle; }
+      .edge { stroke: #496a8f; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .edge-label { font: 14px Arial, sans-serif; fill: #496a8f; text-anchor: middle; }
+      .legend { font: 14px Arial, sans-serif; fill: #40556f; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="760" fill="#fbfcfe"/>
+  <text x="700" y="54" class="title" text-anchor="middle">Moneki.ai 经营看板与智能问答架构</text>
+
+  <!-- Inputs -->
+  <rect x="55" y="130" width="230" height="105" class="box data"/>
+  <text x="170" y="170" class="label">POS 数据</text>
+  <text x="170" y="198" class="sub">pos.db / CSV</text>
+  <text x="170" y="220" class="sub">销售、门店、商品</text>
+
+  <rect x="55" y="400" width="230" height="105" class="box data"/>
+  <text x="170" y="440" class="label">知识库文档</text>
+  <text x="170" y="468" class="sub">Markdown / TXT / HTML</text>
+  <text x="170" y="490" class="sub">制度、通知、周报</text>
+
+  <!-- Processing -->
+  <rect x="360" y="130" width="235" height="105" class="box service"/>
+  <text x="477" y="170" class="label">数据清洗</text>
+  <text x="477" y="198" class="sub">cleaning.py</text>
+  <text x="477" y="220" class="sub">日期、金额、退款、外键</text>
+
+  <rect x="360" y="400" width="235" height="105" class="box service"/>
+  <text x="477" y="440" class="label">文档索引</text>
+  <text x="477" y="468" class="sub">loader / chunker / BM25</text>
+  <text x="477" y="490" class="sub">内容哈希缓存</text>
+
+  <rect x="670" y="130" width="235" height="105" class="box logic"/>
+  <text x="787" y="170" class="label">DataTools</text>
+  <text x="787" y="198" class="sub">SQLite 指标查询</text>
+  <text x="787" y="220" class="sub">汇总、趋势、排行、对比</text>
+
+  <rect x="670" y="400" width="235" height="105" class="box logic"/>
+  <text x="787" y="440" class="label">Retriever / DocFacts</text>
+  <text x="787" y="468" class="sub">相关片段与有效版本</text>
+  <text x="787" y="490" class="sub">可核对原文引用</text>
+
+  <!-- Orchestration -->
+  <rect x="980" y="265" width="235" height="105" class="box logic"/>
+  <text x="1097" y="305" class="label">Planner / Answerer</text>
+  <text x="1097" y="333" class="sub">意图、实体、时间</text>
+  <text x="1097" y="355" class="sub">工具结果组装回答</text>
+
+  <rect x="980" y="520" width="235" height="105" class="box service"/>
+  <text x="1097" y="560" class="label">FastAPI + Trace</text>
+  <text x="1097" y="588" class="sub">数据证据、引用、原始输出</text>
+  <text x="1097" y="610" class="sub">/api/chat 与指标接口</text>
+
+  <rect x="1250" y="520" width="105" height="105" class="box output"/>
+  <text x="1302" y="560" class="label" font-size="17">前端</text>
+  <text x="1302" y="588" class="sub" font-size="13">看板</text>
+  <text x="1302" y="610" class="sub" font-size="13">问答</text>
+
+  <!-- Edges -->
+  <path d="M285 182 H360" class="edge"/>
+  <path d="M595 182 H670" class="edge"/>
+  <path d="M285 452 H360" class="edge"/>
+  <path d="M595 452 H670" class="edge"/>
+  <path d="M905 182 C950 182 950 300 980 300" class="edge"/>
+  <path d="M905 452 C950 452 950 340 980 340" class="edge"/>
+  <path d="M1097 370 V520" class="edge"/>
+  <path d="M1215 572 H1250" class="edge"/>
+  <text x="947" y="203" class="edge-label">指标结果</text>
+  <text x="947" y="438" class="edge-label">文档事实</text>
+  <text x="1140" y="455" class="edge-label">回答 + trace_id</text>
+
+  <!-- Legend -->
+  <rect x="55" y="680" width="18" height="18" class="box data"/>
+  <text x="82" y="695" class="legend">输入数据</text>
+  <rect x="190" y="680" width="18" height="18" class="box service"/>
+  <text x="217" y="695" class="legend">基础服务</text>
+  <rect x="330" y="680" width="18" height="18" class="box logic"/>
+  <text x="357" y="695" class="legend">业务逻辑</text>
+  <rect x="470" y="680" width="18" height="18" class="box output"/>
+  <text x="497" y="695" class="legend">用户输出</text>
+</svg>
